@@ -173,19 +173,11 @@ fun LibraryScreen(
         }
     }
 
-    // SKB_PART2_RESCAN — with try/finally + error safety
+    // SKB_PART2_RESCAN — re-scan when user picks new folder
     LaunchedEffect(skbFolderUris) {
         if (skbFolderUris.isNotEmpty()) {
             loading = true
-            try {
-                allTracks = SafScanner.scan(skbCtx, skbFolderUris)
-            } catch (e: Throwable) {
-                android.util.Log.e("SKB-Library", "scan failed: ${e.message}", e)
-                allTracks = emptyList()
-            } finally {
-                loading = false
-            }
-        } else {
+            allTracks = SafScanner.scan(skbCtx, skbFolderUris)
             loading = false
         }
     }

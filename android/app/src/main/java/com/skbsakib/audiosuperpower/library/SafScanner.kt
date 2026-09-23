@@ -1,12 +1,16 @@
 package com.skbsakib.audiosuperpower.library
 
 import android.content.Context
-import android.media.MediaMetadataRetriever
+import android.database.Cursor
 import android.net.Uri
-import androidx.documentfile.provider.DocumentFile
+import android.provider.DocumentsContract
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
+/**
+ * Fast SAF scanner using DocumentsContract (not DocumentFile).
+ * Skips per-file MediaMetadataRetriever — metadata is lazy.
+ */
 object SafScanner {
 
     private val AUDIO_EXT = setOf(
@@ -19,77 +23,91 @@ object SafScanner {
             if (folderUris.isEmpty()) return@withContext emptyList()
             val out = ArrayList<Track>(512)
             val seen = HashSet<String>()
+
             for (u in folderUris) {
-                val tree = runCatching {
-                    DocumentFile.fromTreeUri(context, Uri.parse(u))
+                val treeUri = runCatching { Uri.parse(u) }.getOrNull() ?: continue
+                val rootDocId = runCatching {
+                    DocumentsContract.getTreeDocumentId(treeUri)
                 }.getOrNull() ?: continue
-                walk(context, tree, out, seen)
+
+                val rootChildren = runCatching {
+                    DocumentsContract.buildChildDocumentsUriUsingTree(treeUri, rootDocId)
+                }.getOrNull() ?: continue
+
+                // BFS queue — avoids deep recursion stack overflow
+                val queue = ArrayDeque<Pair<Uri, String>>()
+                queue.addLast(rootChildren to rootDocId)
+
+                while (queue.isNotEmpty()) {
+                    val (childrenUri, _) = queue.removeFirst()
+                    walkChildren(context, treeUri, childrenUri, out, seen, queue)
+                }
             }
-            out.sortedBy { it.title.lowercase() }
+            out.sortBy { it.title.lowercase() }
+            out
         }
 
-    private fun walk(
+    private fun walkChildren(
         ctx: Context,
-        dir: DocumentFile,
+        treeUri: Uri,
+        childrenUri: Uri,
         out: MutableList<Track>,
-        seen: MutableSet<String>
+        seen: MutableSet<String>,
+        queue: ArrayDeque<Pair<Uri, String>>
     ) {
-        val kids = runCatching { dir.listFiles() }.getOrNull() ?: return
-        for (f in kids) {
-            if (f.isDirectory) {
-                walk(ctx, f, out, seen)
-            } else if (f.isFile) {
-                val name = f.name ?: continue
+        val projection = arrayOf(
+            DocumentsContract.Document.COLUMN_DOCUMENT_ID,
+            DocumentsContract.Document.COLUMN_DISPLAY_NAME,
+            DocumentsContract.Document.COLUMN_MIME_TYPE,
+            DocumentsContract.Document.COLUMN_SIZE
+        )
+        val cursor: Cursor = runCatching {
+            ctx.contentResolver.query(childrenUri, projection, null, null, null)
+        }.getOrNull() ?: return
+
+        cursor.use { c ->
+            val idCol   = c.getColumnIndex(DocumentsContract.Document.COLUMN_DOCUMENT_ID)
+            val nameCol = c.getColumnIndex(DocumentsContract.Document.COLUMN_DISPLAY_NAME)
+            val mimeCol = c.getColumnIndex(DocumentsContract.Document.COLUMN_MIME_TYPE)
+            val sizeCol = c.getColumnIndex(DocumentsContract.Document.COLUMN_SIZE)
+            if (idCol < 0 || nameCol < 0 || mimeCol < 0) return
+
+            while (c.moveToNext()) {
+                val docId = c.getString(idCol) ?: continue
+                val name  = c.getString(nameCol) ?: continue
+                val mime  = c.getString(mimeCol) ?: ""
+                val size  = if (sizeCol >= 0) c.getLong(sizeCol) else 0L
+
+                if (mime == DocumentsContract.Document.MIME_TYPE_DIR) {
+                    val subChildren = runCatching {
+                        DocumentsContract.buildChildDocumentsUriUsingTree(treeUri, docId)
+                    }.getOrNull() ?: continue
+                    queue.addLast(subChildren to docId)
+                    continue
+                }
+
                 val dot = name.lastIndexOf('.')
                 if (dot <= 0) continue
                 val ext = name.substring(dot + 1).lowercase()
                 if (ext !in AUDIO_EXT) continue
 
-                val uriStr = f.uri.toString()
-                if (!seen.add(uriStr)) continue
+                val fileUri = runCatching {
+                    DocumentsContract.buildDocumentUriUsingTree(treeUri, docId)
+                }.getOrNull() ?: continue
 
-                val meta = readMeta(ctx, f.uri)
-                val rawTitle = name.substring(0, dot)
+                val uriStr = fileUri.toString()
+                if (!seen.add(uriStr)) continue
 
                 out += Track(
                     id = uriStr.hashCode().toLong(),
-                    title = meta.title ?: rawTitle,
-                    artist = meta.artist ?: "Unknown artist",
-                    album = meta.album ?: (dir.name ?: "Unknown album"),
-                    durationMs = meta.durationMs,
+                    title = name.substring(0, dot),
+                    artist = "Unknown artist",
+                    album = "Unknown album",
+                    durationMs = 0L,
                     path = uriStr,
-                    sizeBytes = f.length()
+                    sizeBytes = size
                 )
             }
-        }
-    }
-
-    private data class Meta(
-        val title: String?,
-        val artist: String?,
-        val album: String?,
-        val durationMs: Long
-    )
-
-    private fun readMeta(ctx: Context, uri: Uri): Meta {
-        val mmr = MediaMetadataRetriever()
-        return try {
-            mmr.setDataSource(ctx, uri)
-            val title  = mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_TITLE)
-            val artist = mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST)
-                ?: mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ALBUMARTIST)
-            val album  = mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ALBUM)
-            val durStr = mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
-            Meta(
-                title = title?.takeIf { it.isNotBlank() },
-                artist = artist?.takeIf { it.isNotBlank() && it != "<unknown>" },
-                album = album?.takeIf { it.isNotBlank() && it != "<unknown>" },
-                durationMs = durStr?.toLongOrNull() ?: 0L
-            )
-        } catch (_: Throwable) {
-            Meta(null, null, null, 0L)
-        } finally {
-            runCatching { mmr.release() }
         }
     }
 }
