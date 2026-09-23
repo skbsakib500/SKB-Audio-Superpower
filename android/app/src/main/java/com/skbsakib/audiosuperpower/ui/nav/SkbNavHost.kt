@@ -5,7 +5,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import com.skbsakib.audiosuperpower.settings.SkbSettings
-import com.skbsakib.audiosuperpower.ui.screens.HomeScreen
+import com.skbsakib.audiosuperpower.ui.screens.LibraryScreen
 import com.skbsakib.audiosuperpower.ui.screens.PermissionsScreen
 import com.skbsakib.audiosuperpower.ui.screens.SettingsScreen
 
@@ -26,12 +26,10 @@ fun SkbNavHost(
 ) {
     NavHost(navController = nav, startDestination = startDestination) {
         composable(Routes.PERMISSIONS) {
-            PermissionsScreen(
-                onAllGranted = onGrantPermissions
-            )
+            PermissionsScreen(onAllGranted = onGrantPermissions)
         }
         composable(Routes.HOME) {
-            HomeScreen(
+            LibraryScreen(
                 settings = settings,
                 onOpenSettings = { nav.navigate(Routes.SETTINGS) }
             )
