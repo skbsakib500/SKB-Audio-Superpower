@@ -92,7 +92,8 @@ fun LibraryScreen(
     onOpenDeviceLab: () -> Unit,
     onOpenAutoEq: () -> Unit,
     onOpenAnalyzer: () -> Unit,
-    onOpenPlaybackSettings: () -> Unit
+    onOpenPlaybackSettings: () -> Unit,
+    onOpenGlobalEffect: () -> Unit
 ) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -303,6 +304,10 @@ fun LibraryScreen(
             Icon(Icons.Filled.Equalizer, "DSP Lab",
                 tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.size(24.dp).clickable { onOpenDspLab() })
+            Spacer(Modifier.width(18.dp))
+            Icon(Icons.Filled.Public, "Global Effect",
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(24.dp).clickable { onOpenGlobalEffect() })
             Spacer(Modifier.width(18.dp))
             Icon(Icons.Filled.Settings, "Settings",
                 tint = MaterialTheme.colorScheme.primary,
