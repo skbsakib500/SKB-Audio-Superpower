@@ -8,6 +8,7 @@ import com.skbsakib.audiosuperpower.library.PlaybackState
 import com.skbsakib.audiosuperpower.library.Recent
 import com.skbsakib.audiosuperpower.library.Track
 import com.skbsakib.audiosuperpower.playback.ReplayGainController
+import com.skbsakib.audiosuperpower.playback.SmartQueueController
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -92,6 +93,32 @@ object NativePlayer {
                 ReplayGainController.applyLufsForTrack(context.applicationContext, track.path)
             }
 
+            // Smart Queue: analyze BPM + energy on first load, cache result.
+            // Skipped if already cached (fast).
+            scope.launch {
+                val cached = runCatching {
+                    com.skbsakib.audiosuperpower.analyzer.TrackAnalysisCache
+                        .get(context.applicationContext, track.path)
+                }.getOrNull()
+                if (cached == null) {
+                    runCatching {
+                        val bpm = NativeBridge.nativeAnalyzeLoadedBpm()
+                        val conf = NativeBridge.nativeAnalyzeLoadedBpmConfidence()
+                        val e = NativeBridge.nativeAnalyzeLoadedEnergy()
+                        val entry = com.skbsakib.audiosuperpower.analyzer.TrackAnalysisCache.Entry(
+                            bpm = bpm,
+                            confidence = conf,
+                            low = e.getOrNull(0) ?: 0f,
+                            mid = e.getOrNull(1) ?: 0f,
+                            high = e.getOrNull(2) ?: 0f,
+                            centroidHz = e.getOrNull(3) ?: 0f
+                        )
+                        com.skbsakib.audiosuperpower.analyzer.TrackAnalysisCache
+                            .put(context.applicationContext, track.path, entry)
+                    }
+                }
+            }
+
             // Enrich metadata lazily (SAF tracks have unknown artist/album initially)
             val enriched = if (track.artist == "Unknown artist" || track.durationMs == 0L) {
                 runCatching { LazyMetadata.read(context.applicationContext, track) }
@@ -167,12 +194,36 @@ object NativePlayer {
 
     fun next() {
         val ctx = appContext ?: return
+        // 1. Explicit queue wins
         if (queue.isNotEmpty()) {
             val nt = queue.removeFirst()
             _snapshot.value = _snapshot.value.copy(queueSize = queue.size)
             load(ctx, nt, autoplay = true)
             return
         }
+        // 2. Smart Queue (if enabled and we have a current track)
+        val cur = currentTrack
+        if (cur != null && libraryContext.size > 1) {
+            scope.launch {
+                val pick = runCatching {
+                    SmartQueueController.pickNext(ctx.applicationContext, cur, libraryContext)
+                }.getOrNull()
+                if (pick != null) {
+                    SmartQueueController.rememberPick(pick.path)
+                    val idx = libraryContext.indexOfFirst { it.path == pick.path }
+                    load(ctx, pick, autoplay = true, libraryIndex = if (idx >= 0) idx else -1)
+                } else {
+                    // 3. Fall back to library order
+                    if (libraryContext.isNotEmpty() && currentLibraryIndex >= 0) {
+                        val ni = (currentLibraryIndex + 1) % libraryContext.size
+                        currentLibraryIndex = ni
+                        load(ctx, libraryContext[ni], autoplay = true, libraryIndex = ni)
+                    }
+                }
+            }
+            return
+        }
+        // 4. No current → library order
         if (libraryContext.isNotEmpty() && currentLibraryIndex >= 0) {
             val ni = (currentLibraryIndex + 1) % libraryContext.size
             currentLibraryIndex = ni

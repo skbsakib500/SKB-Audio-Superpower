@@ -17,6 +17,11 @@ object NativeBridge {
     // Loudness (BS.1770-4) — offline measurement of the loaded track
     external fun nativeAnalyzeLoadedLufs(): Float
     external fun nativeAnalyzeLoadedTruePeakDb(): Float
+
+    // Smart Queue analysis (offline)
+    external fun nativeAnalyzeLoadedBpm(): Float
+    external fun nativeAnalyzeLoadedBpmConfidence(): Float
+    external fun nativeAnalyzeLoadedEnergy(): FloatArray
 }
 
     // Version

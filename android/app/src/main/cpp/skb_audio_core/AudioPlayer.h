@@ -16,6 +16,8 @@
 #include "spatial/SpatialEngine.h"
 #include "analyzer/Analyzer.h"
 #include "analyzer/Loudness.h"
+#include "analyzer/BpmDetector.h"
+#include "analyzer/EnergyDetector.h"
 
 namespace skb {
 
@@ -108,6 +110,11 @@ public:
     // computation). Used by the BS.1770 LUFS path where we already know
     // the desired gain.
     void setReplayGainDirectGainDb(float gainDb);
+
+    // Smart Queue analysis (offline; scans loaded PCM)
+    float analyzeLoadedBpm(float& confidenceOut) const;
+    void  analyzeLoadedEnergy(float& lowOut, float& midOut, float& highOut,
+                              float& centroidHzOut) const;
 
     // Oboe callbacks
     oboe::DataCallbackResult onAudioReady(

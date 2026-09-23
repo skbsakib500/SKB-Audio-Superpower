@@ -27,6 +27,8 @@ import com.skbsakib.audiosuperpower.playback.ReplayGainController
 import com.skbsakib.audiosuperpower.playback.RgMethod
 import com.skbsakib.audiosuperpower.playback.RgMode
 import com.skbsakib.audiosuperpower.playback.SleepTimer
+import com.skbsakib.audiosuperpower.playback.SmartQueueController
+import com.skbsakib.audiosuperpower.playback.SmartQueueMode
 
 @Composable
 fun PlaybackSettingsScreen(onClose: () -> Unit) {
@@ -341,6 +343,72 @@ fun PlaybackSettingsScreen(onClose: () -> Unit) {
                 }
             }
         }
+
+        Spacer(Modifier.height(28.dp))
+
+        SectionLabel("SMART QUEUE")
+        Spacer(Modifier.height(10.dp))
+        Surface(color = Color(0x1A00E5FF), shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.fillMaxWidth()) {
+            Row(
+                Modifier.padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text("AUTO-DJ",
+                        color = if (sqState.mode != SmartQueueMode.OFF)
+                            MaterialTheme.colorScheme.primary else Color(0xFFB0C2D0),
+                        fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
+                        fontFamily = FontFamily.Monospace)
+                    Spacer(Modifier.height(2.dp))
+                    Text("BPM + energy aware next-track selection",
+                        color = Color(0xFF7A8FA6), fontSize = 10.sp,
+                        fontFamily = FontFamily.Monospace)
+                }
+                Text(
+                    when (sqState.mode) {
+                        SmartQueueMode.OFF -> "OFF"
+                        SmartQueueMode.TEMPO -> "TEMPO"
+                        SmartQueueMode.ENERGY -> "ENERGY"
+                        SmartQueueMode.MIXED -> "MIXED"
+                    },
+                    color = Color(0xFF3D5266), fontSize = 9.sp,
+                    letterSpacing = 2.sp, fontFamily = FontFamily.Monospace)
+            }
+        }
+        Spacer(Modifier.height(10.dp))
+
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            SmartQueueMode.entries.forEach { mode ->
+                val active = sqState.mode == mode
+                Surface(
+                    color = if (active) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
+                            else Color(0x1A00E5FF),
+                    shape = RoundedCornerShape(16.dp),
+                    border = if (active) BorderStroke(1.dp, MaterialTheme.colorScheme.primary) else null,
+                    modifier = Modifier.weight(1f).clickable {
+                        SmartQueueController.setMode(ctx, mode)
+                    }
+                ) {
+                    Box(
+                        Modifier.padding(vertical = 8.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(mode.name,
+                            color = if (active) MaterialTheme.colorScheme.primary else Color(0xFF7A8FA6),
+                            fontSize = 9.sp, letterSpacing = 1.sp,
+                            fontFamily = FontFamily.Monospace)
+                    }
+                }
+            }
+        }
+        Spacer(Modifier.height(4.dp))
+        Text("first analysis on play · cached afterwards",
+            color = Color(0xFF3D5266), fontSize = 9.sp,
+            fontFamily = FontFamily.Monospace)
 
         Spacer(Modifier.height(30.dp))
         Text("engine · skb-core playback\ncreator · SKB Sakib",

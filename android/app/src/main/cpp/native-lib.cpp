@@ -319,4 +319,30 @@ Java_com_skbsakib_audiosuperpower_NativeBridge_nativeSetReplayGainDirectGainDb(
     ensurePlayer()->setReplayGainDirectGainDb(static_cast<float>(gainDb));
 }
 
+
+JNIEXPORT jfloat JNICALL
+Java_com_skbsakib_audiosuperpower_NativeBridge_nativeAnalyzeLoadedBpm(JNIEnv*, jobject) {
+    float conf = 0.0f;
+    return static_cast<jfloat>(ensurePlayer()->analyzeLoadedBpm(conf));
+}
+
+JNIEXPORT jfloat JNICALL
+Java_com_skbsakib_audiosuperpower_NativeBridge_nativeAnalyzeLoadedBpmConfidence(JNIEnv*, jobject) {
+    float conf = 0.0f;
+    (void)ensurePlayer()->analyzeLoadedBpm(conf);
+    return static_cast<jfloat>(conf);
+}
+
+JNIEXPORT jfloatArray JNICALL
+Java_com_skbsakib_audiosuperpower_NativeBridge_nativeAnalyzeLoadedEnergy(JNIEnv* env, jobject) {
+    float lo = 0f, mi = 0f, hi = 0f, cent = 0f;
+    ensurePlayer()->analyzeLoadedEnergy(lo, mi, hi, cent);
+    jfloatArray out = env->NewFloatArray(4);
+    if (out != nullptr) {
+        jfloat tmp[4] = {lo, mi, hi, cent};
+        env->SetFloatArrayRegion(out, 0, 4, tmp);
+    }
+    return out;
+}
+
 } // extern "C"

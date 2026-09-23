@@ -266,6 +266,31 @@ float AudioPlayer::replayGainMeasuredPeakDb() const {
 
 // Scan the loaded samples for the absolute peak. Realtime-safe (off audio
 // thread). Called once per track after decode, before play.
+// Smart Queue: BPM detection of the loaded track (offline).
+float AudioPlayer::analyzeLoadedBpm(float& confidenceOut) const {
+    confidenceOut = 0.0f;
+    if (samples_.empty() || srcChannels_ <= 0 || srcSampleRate_ <= 0) return 0.0f;
+    const auto r = analyzer::BpmDetector::analyze(
+        samples_.data(), totalFrames_, srcChannels_, srcSampleRate_);
+    confidenceOut = r.confidence;
+    return r.ok ? r.bpm : 0.0f;
+}
+
+// Smart Queue: spectral energy distribution of the loaded track (offline).
+void AudioPlayer::analyzeLoadedEnergy(float& lowOut, float& midOut, float& highOut,
+                                      float& centroidHzOut) const {
+    lowOut = midOut = highOut = 0.0f;
+    centroidHzOut = 0.0f;
+    if (samples_.empty() || srcChannels_ <= 0 || srcSampleRate_ <= 0) return;
+    const auto r = analyzer::EnergyDetector::analyze(
+        samples_.data(), totalFrames_, srcChannels_, srcSampleRate_);
+    if (!r.ok) return;
+    lowOut = r.low;
+    midOut = r.mid;
+    highOut = r.high;
+    centroidHzOut = r.centroidHz;
+}
+
 // Direct gain (bypasses peak computation). Used by LUFS-based ReplayGain.
 void AudioPlayer::setReplayGainDirectGainDb(float gainDb) {
     replayGain_.setDirectGainDb(gainDb);
