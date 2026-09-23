@@ -62,15 +62,12 @@ import com.skbsakib.audiosuperpower.settings.SkbSettings
 import com.skbsakib.audiosuperpower.ui.components.TrackContextSheet
 import kotlinx.coroutines.launch
 import android.content.Intent
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import kotlinx.coroutines.launch
 import com.skbsakib.audiosuperpower.library.FolderStore
 import com.skbsakib.audiosuperpower.library.SafScanner
 
@@ -85,32 +82,31 @@ fun LibraryScreen(
     onOpenSettings: () -> Unit,
     onOpenPlayer: () -> Unit
 ) {
-    // ═══ SKB_FOLDER_STATE_MARKER ═══
+    // SKB_FOLDER_STATE_MARKER
     val skbCtx = androidx.compose.ui.platform.LocalContext.current
-    val skbFolderStore = androidx.compose.runtime.remember { FolderStore(skbCtx.applicationContext) }
-    val skbScope = androidx.compose.runtime.rememberCoroutineScope()
+    val skbFolderStore = remember { FolderStore(skbCtx.applicationContext) }
+    val skbScope = rememberCoroutineScope()
     val skbFolderUrisState = skbFolderStore.folders.collectAsState(initial = emptySet<String>())
     val skbFolderUris = skbFolderUrisState.value
-    val skbPickerShown = androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
-    val skbFolderPicker = androidx.activity.compose.rememberLauncherForActivityResult(
-        androidx.activity.result.contract.ActivityResultContracts.OpenDocumentTree()
+    val skbPickerShown = remember { mutableStateOf(false) }
+    val skbFolderPicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocumentTree()
     ) { uri ->
         uri?.let {
             runCatching {
                 skbCtx.contentResolver.takePersistableUriPermission(
-                    it, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
+                    it, Intent.FLAG_GRANT_READ_URI_PERMISSION
                 )
             }
             skbScope.launch { skbFolderStore.add(it.toString()) }
         }
     }
-    androidx.compose.runtime.LaunchedEffect(Unit) {
+    LaunchedEffect(Unit) {
         if (!skbPickerShown.value && skbFolderUris.isEmpty()) {
             skbPickerShown.value = true
             skbFolderPicker.launch(null)
         }
     }
-    // ═══════════════════════════════
     val ctx = LocalContext.current
     var allTracks by remember { mutableStateOf<List<Track>>(emptyList()) }
     var loading by remember { mutableStateOf(true) }
