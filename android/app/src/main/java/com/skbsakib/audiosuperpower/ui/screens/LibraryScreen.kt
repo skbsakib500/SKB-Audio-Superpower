@@ -30,6 +30,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
@@ -94,7 +95,8 @@ fun LibraryScreen(
     onOpenAutoEq: () -> Unit,
     onOpenAnalyzer: () -> Unit,
     onOpenPlaybackSettings: () -> Unit,
-    onOpenGlobalEffect: () -> Unit
+    onOpenGlobalEffect: () -> Unit,
+    onOpenCloud: () -> Unit
 ) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -305,6 +307,10 @@ fun LibraryScreen(
             Icon(Icons.Filled.Equalizer, "DSP Lab",
                 tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.size(24.dp).clickable { onOpenDspLab() })
+            Spacer(Modifier.width(18.dp))
+            Icon(Icons.Filled.Cloud, "Cloud",
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(24.dp).clickable { onOpenCloud() })
             Spacer(Modifier.width(18.dp))
             Icon(Icons.Filled.Public, "Global Effect",
                 tint = MaterialTheme.colorScheme.primary,

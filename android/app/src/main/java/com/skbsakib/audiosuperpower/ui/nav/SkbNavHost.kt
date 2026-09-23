@@ -15,6 +15,7 @@ import com.skbsakib.audiosuperpower.settings.SkbSettings
 import com.skbsakib.audiosuperpower.ui.overlay.PlayerOverlayState
 import com.skbsakib.audiosuperpower.ui.screens.AnalyzerScreen
 import com.skbsakib.audiosuperpower.ui.screens.AutoEqScreen
+import com.skbsakib.audiosuperpower.ui.screens.CloudSourceScreen
 import com.skbsakib.audiosuperpower.ui.screens.DeviceLabScreen
 import com.skbsakib.audiosuperpower.ui.screens.GlobalEffectScreen
 import com.skbsakib.audiosuperpower.ui.screens.DspLabScreen
@@ -35,6 +36,7 @@ object Routes {
     const val ANALYZER    = "analyzer"
     const val PLAYBACK    = "playback"
     const val GLOBAL_EFFECT = "global_effect"
+    const val CLOUD       = "cloud"
 }
 
 /** Lab routes opened from HOME — treated like secondary tabs. */
@@ -114,7 +116,8 @@ fun SkbNavHost(
                 onOpenAutoEq     = { navToLab(Routes.AUTOEQ) },
                 onOpenAnalyzer   = { navToLab(Routes.ANALYZER) },
                 onOpenPlaybackSettings = { navToLab(Routes.PLAYBACK) },
-                onOpenGlobalEffect = { navToLab(Routes.GLOBAL_EFFECT) }
+                onOpenGlobalEffect = { navToLab(Routes.GLOBAL_EFFECT) },
+                onOpenCloud = { navToLab(Routes.CLOUD) }
             )
         }
 
@@ -203,6 +206,16 @@ fun SkbNavHost(
             popExitTransition = { labPopExit }
         ) {
             GlobalEffectScreen(onClose = { nav.popBackStack() })
+        }
+
+        composable(
+            Routes.CLOUD,
+            enterTransition = { labEnter },
+            exitTransition = { labExit },
+            popEnterTransition = { labPopEnter },
+            popExitTransition = { labPopExit }
+        ) {
+            CloudSourceScreen(onClose = { nav.popBackStack() })
         }
     }
 }
