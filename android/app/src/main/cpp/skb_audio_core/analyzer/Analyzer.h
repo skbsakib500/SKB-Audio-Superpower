@@ -11,8 +11,8 @@ namespace skb::analyzer {
  * Analyzer: writes spectrum + meters from audio callback, reads from UI
  * thread via JNI. Double-buffered spectrum, atomic meters.
  *
- * "LUFS short-term" here is RMS dBFS (honest label). Full ITU-R BS.1770
- * K-weighting can be added later as a dedicated block.
+ * "RMS dBFS" here is short-term RMS, not full ITU-R BS.1770 LUFS
+ * (K-weighting filter deferred). Labels reflect actual measurement.
  */
 class Analyzer {
 public:
@@ -40,8 +40,8 @@ public:
         const float prev = peak_.load(std::memory_order_relaxed);
         if (absv > prev) peak_.store(absv, std::memory_order_relaxed);
 
-        sumSq_ += mono * mono;
-        samplesCount_ += 1;
+        sumSq_.fetch_add(static_cast<double>(mono) * mono, std::memory_order_relaxed);
+        samplesCount_.fetch_add(1, std::memory_order_relaxed);
 
         ring_[ringWrite_] = mono;
         ringWrite_ = (ringWrite_ + 1) % FFT_SIZE;
@@ -75,7 +75,9 @@ public:
         for (int i = 0; i < n; ++i) out[i] = src[i];
     }
 
-    float takePeak() { return peak_.exchange(0.0f, std::memory_order_acq_rel); }
+    float takePeak() {
+        return peak_.exchange(0.0f, std::memory_order_acq_rel);
+    }
 
     float takeRms() {
         const int64_t n = samplesCount_.exchange(0, std::memory_order_acq_rel);
@@ -108,9 +110,9 @@ private:
     std::atomic<bool> enabled_{false};
     float sampleRate_ = 48000.0f;
 
-    std::atomic<float> peak_{0.0f};
-    double sumSq_ = 0.0;
-    int64_t samplesCount_ = 0;
+    std::atomic<float>   peak_{0.0f};
+    std::atomic<double>  sumSq_{0.0};
+    std::atomic<int64_t> samplesCount_{0};
 };
 
 } // namespace skb::analyzer
