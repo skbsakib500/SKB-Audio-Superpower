@@ -16,7 +16,8 @@ android {
         versionName = "0.3.0-alpha.1"
         ndk { abiFilters += listOf("arm64-v8a") }
         externalNativeBuild {
-            cmake { cppFlags += listOf("-std=c++20", "-fexceptions", "-frtti") }
+            cmake { cppFlags += listOf("-std=c++20", "-fexceptions", "-frtti")
+                arguments += listOf("-DANDROID_STL=c++_shared") }
         }
     }
 
@@ -68,5 +69,6 @@ dependencies {
     implementation(libs.androidx.navigation.compose)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.oboe)
+    implementation("androidx.media:media:1.7.0")
     debugImplementation(libs.androidx.compose.ui.tooling)
 }
