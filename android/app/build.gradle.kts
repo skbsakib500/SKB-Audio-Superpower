@@ -16,7 +16,12 @@ android {
         versionName = "0.8.1-alpha.1"
         ndk { abiFilters += listOf("arm64-v8a") }
         externalNativeBuild {
-            cmake { cppFlags += listOf("-std=c++20", "-fexceptions", "-frtti") }
+            cmake {
+                cppFlags += listOf("-std=c++20", "-fexceptions", "-frtti")
+                // Oboe AAR is built against shared STL; the default static STL
+                // fails with NoMatchingLibraryException.
+                arguments += listOf("-DANDROID_STL=c++_shared")
+            }
         }
         // Baseline profile consumer rules (auto-applied by profileinstaller)
         vectorDrawables.useSupportLibrary = false
