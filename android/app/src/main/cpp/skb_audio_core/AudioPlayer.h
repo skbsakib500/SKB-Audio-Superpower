@@ -15,6 +15,7 @@
 #include "dsp/ReplayGain.h"
 #include "spatial/SpatialEngine.h"
 #include "analyzer/Analyzer.h"
+#include "analyzer/Loudness.h"
 
 namespace skb {
 
@@ -97,6 +98,16 @@ public:
     // Compute the peak (linear) of the currently loaded track. Fast because
     // the samples are already in memory. Call after loadWav to auto-apply RG.
     float computeLoadedPeak() const;
+
+    // Full BS.1770-4 integrated loudness measurement of the currently loaded
+    // track. Returns LUFS (-70 if silent/empty). Also fills truePeakDb.
+    // NOTE: offline/background use; scans the whole PCM buffer.
+    float analyzeLoadedLufs(float& truePeakDbOut) const;
+
+    // Directly set the ReplayGain amount in dB (bypasses peak-based
+    // computation). Used by the BS.1770 LUFS path where we already know
+    // the desired gain.
+    void setReplayGainDirectGainDb(float gainDb);
 
     // Oboe callbacks
     oboe::DataCallbackResult onAudioReady(

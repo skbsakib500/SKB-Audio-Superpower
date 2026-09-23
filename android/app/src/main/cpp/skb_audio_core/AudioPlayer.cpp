@@ -266,6 +266,11 @@ float AudioPlayer::replayGainMeasuredPeakDb() const {
 
 // Scan the loaded samples for the absolute peak. Realtime-safe (off audio
 // thread). Called once per track after decode, before play.
+// Direct gain (bypasses peak computation). Used by LUFS-based ReplayGain.
+void AudioPlayer::setReplayGainDirectGainDb(float gainDb) {
+    replayGain_.setDirectGainDb(gainDb);
+}
+
 float AudioPlayer::computeLoadedPeak() const {
     float peak = 0.0f;
     for (float s : samples_) {
@@ -273,6 +278,21 @@ float AudioPlayer::computeLoadedPeak() const {
         if (a > peak) peak = a;
     }
     return peak;
+}
+
+// BS.1770-4 integrated loudness of the loaded track. Offline/background.
+float AudioPlayer::analyzeLoadedLufs(float& truePeakDbOut) const {
+    truePeakDbOut = -120.0f;
+    if (samples_.empty() || srcChannels_ <= 0 || srcSampleRate_ <= 0) {
+        return -70.0f;
+    }
+    const auto result = analyzer::Loudness::analyze(
+        samples_.data(),
+        totalFrames_,
+        srcChannels_,
+        static_cast<float>(srcSampleRate_));
+    truePeakDbOut = result.truePeakDb;
+    return result.ok ? result.integratedLufs : -70.0f;
 }
 
 // ─────────────────────────────────────────────────────

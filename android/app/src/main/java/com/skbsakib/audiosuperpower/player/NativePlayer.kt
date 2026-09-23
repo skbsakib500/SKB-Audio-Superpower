@@ -84,10 +84,12 @@ object NativePlayer {
             }
 
             // Auto-apply ReplayGain: compute the loaded track's peak in native
-            // and hand it to the controller (which handles enabled/disabled).
+            // (peak-based path) and kick off LUFS analysis (loudness-based path)
+            // which will override the gain if RgMethod.LUFS is selected.
             runCatching {
                 val peakDb = NativeBridge.nativeComputeLoadedPeakDb()
                 ReplayGainController.applyMeasuredPeak(peakDb)
+                ReplayGainController.applyLufsForTrack(context.applicationContext, track.path)
             }
 
             // Enrich metadata lazily (SAF tracks have unknown artist/album initially)

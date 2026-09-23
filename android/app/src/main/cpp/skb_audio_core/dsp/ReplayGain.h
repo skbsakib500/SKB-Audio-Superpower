@@ -57,6 +57,15 @@ public:
         setMeasuredPeak(std::pow(10.0f, peakDb / 20.0f));
     }
 
+    /** Set the gain directly (dB). Used by LUFS-based RG. */
+    void setDirectGainDb(float db) {
+        if (db > 12.0f) db = 12.0f;
+        if (db < -30.0f) db = -30.0f;
+        const float lin = std::pow(10.0f, db / 20.0f);
+        desiredGainLin_.store(lin, std::memory_order_release);
+        desiredGainDb_.store(db, std::memory_order_release);
+    }
+
     void reset() {
         measuredLin_.store(1.0f, std::memory_order_release);
         desiredGainLin_.store(1.0f, std::memory_order_release);

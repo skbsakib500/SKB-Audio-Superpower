@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.skbsakib.audiosuperpower.playback.CrossfadeController
 import com.skbsakib.audiosuperpower.playback.ReplayGainController
+import com.skbsakib.audiosuperpower.playback.RgMethod
 import com.skbsakib.audiosuperpower.playback.RgMode
 import com.skbsakib.audiosuperpower.playback.SleepTimer
 
@@ -194,7 +195,39 @@ fun PlaybackSettingsScreen(onClose: () -> Unit) {
         if (rgState.enabled) {
             Spacer(Modifier.height(10.dp))
 
-            // Mode toggle
+            // Gain computation method toggle
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                RgMethod.entries.forEach { method ->
+                    val active = rgState.method == method
+                    Surface(
+                        color = if (active) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
+                                else Color(0x1A00E5FF),
+                        shape = RoundedCornerShape(20.dp),
+                        border = if (active) BorderStroke(1.dp, MaterialTheme.colorScheme.primary) else null,
+                        modifier = Modifier.weight(1f).clickable {
+                            ReplayGainController.setMethod(ctx, method)
+                        }
+                    ) {
+                        Box(
+                            Modifier.padding(vertical = 8.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                if (method == RgMethod.PEAK) "PEAK" else "LUFS · BS.1770",
+                                color = if (active) MaterialTheme.colorScheme.primary else Color(0xFF7A8FA6),
+                                fontSize = 10.sp, letterSpacing = 1.sp,
+                                fontFamily = FontFamily.Monospace)
+                        }
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(10.dp))
+
+            // Mode (track/album)
             Row(
                 Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -225,22 +258,42 @@ fun PlaybackSettingsScreen(onClose: () -> Unit) {
 
             Spacer(Modifier.height(10.dp))
 
-            // Target dB slider
-            Text("TARGET PEAK: %+.1f dBFS".format(rgState.targetDb),
-                color = Color(0xFF7A8FA6), fontSize = 10.sp,
-                fontFamily = FontFamily.Monospace)
-            Slider(
-                value = rgState.targetDb,
-                onValueChange = { ReplayGainController.setTargetDb(ctx, it) },
-                valueRange = -12f..0f,
-                steps = 23,
-                colors = SliderDefaults.colors(
-                    thumbColor = MaterialTheme.colorScheme.primary,
-                    activeTrackColor = MaterialTheme.colorScheme.primary,
-                    inactiveTrackColor = Color(0x2200E5FF)
-                ),
-                modifier = Modifier.fillMaxWidth()
-            )
+            if (rgState.method == RgMethod.PEAK) {
+                Text("TARGET PEAK: %+.1f dBFS".format(rgState.targetDb),
+                    color = Color(0xFF7A8FA6), fontSize = 10.sp,
+                    fontFamily = FontFamily.Monospace)
+                Slider(
+                    value = rgState.targetDb,
+                    onValueChange = { ReplayGainController.setTargetDb(ctx, it) },
+                    valueRange = -12f..0f,
+                    steps = 23,
+                    colors = SliderDefaults.colors(
+                        thumbColor = MaterialTheme.colorScheme.primary,
+                        activeTrackColor = MaterialTheme.colorScheme.primary,
+                        inactiveTrackColor = Color(0x2200E5FF)
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                )
+            } else {
+                Text("TARGET LOUDNESS: %.1f LUFS".format(rgState.targetLufs),
+                    color = Color(0xFF7A8FA6), fontSize = 10.sp,
+                    fontFamily = FontFamily.Monospace)
+                Slider(
+                    value = rgState.targetLufs,
+                    onValueChange = { ReplayGainController.setTargetLufs(ctx, it) },
+                    valueRange = -30f..-5f,
+                    steps = 24,
+                    colors = SliderDefaults.colors(
+                        thumbColor = MaterialTheme.colorScheme.primary,
+                        activeTrackColor = MaterialTheme.colorScheme.primary,
+                        inactiveTrackColor = Color(0x2200E5FF)
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Text("Spotify/YouTube ≈ -14 LUFS · EBU R128 ≈ -23 LUFS",
+                    color = Color(0xFF3D5266), fontSize = 9.sp,
+                    fontFamily = FontFamily.Monospace)
+            }
 
             // Preamp slider
             Text("PREAMP: %+.1f dB".format(rgState.preampDb),
@@ -267,10 +320,13 @@ fun PlaybackSettingsScreen(onClose: () -> Unit) {
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Column {
-                        Text("MEASURED PEAK",
+                        Text(
+                            if (rgState.method == RgMethod.PEAK) "MEASURED PEAK" else "MEASURED LUFS",
                             color = Color(0xFF4A6272), fontSize = 9.sp,
                             letterSpacing = 2.sp, fontFamily = FontFamily.Monospace)
-                        Text("%+.1f dB".format(rgState.lastMeasuredPeakDb),
+                        Text(
+                            if (rgState.method == RgMethod.PEAK) "%+.1f dB".format(rgState.lastMeasuredPeakDb)
+                            else "%.1f LUFS".format(rgState.lastMeasuredLufs),
                             color = MaterialTheme.colorScheme.primary,
                             fontSize = 12.sp, fontFamily = FontFamily.Monospace)
                     }

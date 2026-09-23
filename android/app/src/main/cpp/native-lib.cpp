@@ -298,4 +298,25 @@ Java_com_skbsakib_audiosuperpower_NativeBridge_nativeComputeLoadedPeakDb(JNIEnv*
     return static_cast<jfloat>(20.0f * std::log10(lin));
 }
 
+
+JNIEXPORT jfloat JNICALL
+Java_com_skbsakib_audiosuperpower_NativeBridge_nativeAnalyzeLoadedLufs(JNIEnv*, jobject) {
+    float tp = -120.0f;
+    return static_cast<jfloat>(ensurePlayer()->analyzeLoadedLufs(tp));
+}
+
+JNIEXPORT jfloat JNICALL
+Java_com_skbsakib_audiosuperpower_NativeBridge_nativeAnalyzeLoadedTruePeakDb(JNIEnv*, jobject) {
+    float tp = -120.0f;
+    (void)ensurePlayer()->analyzeLoadedLufs(tp);
+    return static_cast<jfloat>(tp);
+}
+
+
+JNIEXPORT void JNICALL
+Java_com_skbsakib_audiosuperpower_NativeBridge_nativeSetReplayGainDirectGainDb(
+        JNIEnv*, jobject, jfloat gainDb) {
+    ensurePlayer()->setReplayGainDirectGainDb(static_cast<float>(gainDb));
+}
+
 } // extern "C"

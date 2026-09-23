@@ -10,8 +10,13 @@ object NativeBridge {
     external fun nativeSetReplayGainTargetDb(db: Float)
     external fun nativeSetReplayGainPeakDb(peakDb: Float)
     external fun nativeReplayGainCurrentDb(): Float
+    external fun nativeSetReplayGainDirectGainDb(gainDb: Float)
     external fun nativeReplayGainMeasuredPeakDb(): Float
     external fun nativeComputeLoadedPeakDb(): Float
+
+    // Loudness (BS.1770-4) — offline measurement of the loaded track
+    external fun nativeAnalyzeLoadedLufs(): Float
+    external fun nativeAnalyzeLoadedTruePeakDb(): Float
 }
 
     // Version
