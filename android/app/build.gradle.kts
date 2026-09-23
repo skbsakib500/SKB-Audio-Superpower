@@ -12,8 +12,8 @@ android {
         applicationId = "com.skbsakib.audiosuperpower"
         minSdk = 24
         targetSdk = 34
-        versionCode = 2
-        versionName = "0.2.0-alpha.1"
+        versionCode = 3
+        versionName = "0.3.0-alpha.1"
         ndk { abiFilters += listOf("arm64-v8a") }
         externalNativeBuild {
             cmake { cppFlags += listOf("-std=c++20", "-fexceptions", "-frtti") }
@@ -43,7 +43,10 @@ android {
     }
     kotlinOptions { jvmTarget = "17" }
 
-    buildFeatures { compose = true }
+    buildFeatures {
+        compose = true
+        prefab = true
+    }
     composeOptions { kotlinCompilerExtensionVersion = "1.5.14" }
 
     packaging { jniLibs { useLegacyPackaging = false } }
@@ -64,5 +67,6 @@ dependencies {
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.androidx.navigation.compose)
     implementation(libs.kotlinx.coroutines.android)
+    implementation(libs.oboe)
     debugImplementation(libs.androidx.compose.ui.tooling)
 }

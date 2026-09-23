@@ -5,14 +5,16 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import com.skbsakib.audiosuperpower.settings.SkbSettings
+import com.skbsakib.audiosuperpower.ui.screens.FullPlayerScreen
 import com.skbsakib.audiosuperpower.ui.screens.LibraryScreen
 import com.skbsakib.audiosuperpower.ui.screens.PermissionsScreen
 import com.skbsakib.audiosuperpower.ui.screens.SettingsScreen
 
 object Routes {
     const val PERMISSIONS = "permissions"
-    const val HOME = "home"
-    const val SETTINGS = "settings"
+    const val HOME        = "home"
+    const val SETTINGS    = "settings"
+    const val PLAYER      = "player"
 }
 
 @Composable
@@ -31,7 +33,8 @@ fun SkbNavHost(
         composable(Routes.HOME) {
             LibraryScreen(
                 settings = settings,
-                onOpenSettings = { nav.navigate(Routes.SETTINGS) }
+                onOpenSettings = { nav.navigate(Routes.SETTINGS) },
+                onOpenPlayer   = { nav.navigate(Routes.PLAYER) }
             )
         }
         composable(Routes.SETTINGS) {
@@ -41,6 +44,9 @@ fun SkbNavHost(
                 onAccentChange = onAccentChange,
                 onHapticsChange = onHapticsChange
             )
+        }
+        composable(Routes.PLAYER) {
+            FullPlayerScreen(onClose = { nav.popBackStack() })
         }
     }
 }
