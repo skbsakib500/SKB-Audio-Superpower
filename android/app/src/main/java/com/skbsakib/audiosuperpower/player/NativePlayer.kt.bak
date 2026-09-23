@@ -1,7 +1,5 @@
 package com.skbsakib.audiosuperpower.player
 
-import com.skbsakib.audiosuperpower.library.PlaybackState
-
 import android.content.Context
 import com.skbsakib.audiosuperpower.NativeBridge
 import com.skbsakib.audiosuperpower.library.AudioDecoder
@@ -59,8 +57,6 @@ object NativePlayer {
 
     /** Load and optionally auto-play a track. */
     fun load(context: Context, track: Track, autoplay: Boolean = true, libraryIndex: Int = -1) {
-        // SKB_HOOK_PLAYBACK
-        // (auto-inserted — needs manual review if args differ)
         appContext = context.applicationContext
         if (libraryIndex >= 0) currentLibraryIndex = libraryIndex
         scope.launch {
@@ -107,8 +103,6 @@ object NativePlayer {
 
     // ── Transport ──
     fun play() {
-        // SKB_HOOK_PLAYBACK
-        // (auto-inserted — needs manual review if args differ)
         scope.launch {
             val ok = runCatching { NativeBridge.nativePlay() }.getOrElse { false }
             if (!ok) {

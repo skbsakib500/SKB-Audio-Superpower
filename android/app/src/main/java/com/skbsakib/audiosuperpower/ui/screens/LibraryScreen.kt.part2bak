@@ -70,7 +70,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import com.skbsakib.audiosuperpower.library.FolderStore
 import com.skbsakib.audiosuperpower.library.SafScanner
-import com.skbsakib.audiosuperpower.library.PlaybackState
 
 private const val TAG = "SKB-Library"
 
@@ -141,45 +140,6 @@ fun LibraryScreen(
     // Push library list into NativePlayer so next/prev walks it
     LaunchedEffect(allTracks) {
         NativePlayer.setLibrary(allTracks, -1)
-    }
-
-    // SKB_PART2_BRIDGE — publish now-playing to shared state
-    LaunchedEffect(snapshot.title, snapshot.artist) {
-        if (snapshot.title.isNotBlank()) {
-            val i = allTracks.indexOfFirst {
-                it.title == snapshot.title && it.artist == snapshot.artist
-            }
-            if (i >= 0) {
-                PlaybackState.setNowPlaying(
-                    allTracks[i].id, allTracks[i].path,
-                    snapshot.state == PlayerState.PLAYING
-                )
-            }
-        } else {
-            PlaybackState.clear()
-        }
-    }
-
-    // SKB_PART2_AUTOSCROLL — scroll to now-playing row
-    LaunchedEffect(snapshot.title, snapshot.artist, displayed.size) {
-        if (snapshot.title.isNotBlank() && displayed.isNotEmpty()) {
-            val i = displayed.indexOfFirst {
-                it.title == snapshot.title && it.artist == snapshot.artist
-            }
-            if (i >= 0) {
-                kotlinx.coroutines.delay(200L)
-                listState.animateScrollToItem(i)
-            }
-        }
-    }
-
-    // SKB_PART2_RESCAN — re-scan when user picks new folder
-    LaunchedEffect(skbFolderUris) {
-        if (skbFolderUris.isNotEmpty()) {
-            loading = true
-            allTracks = SafScanner.scan(skbCtx, skbFolderUris)
-            loading = false
-        }
     }
 
     // Delete intent launcher (Android 11+)
