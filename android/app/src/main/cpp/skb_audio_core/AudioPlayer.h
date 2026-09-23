@@ -78,6 +78,13 @@ public:
     float analyzerTakeRmsDb();
     bool  analyzerIsClipping() const;
 
+    // ── Crossfade / Gapless ──
+    void setCrossfadeMs(int ms);                  // 0 = gapless (no fade), 1000..8000 = crossfade
+    int  crossfadeMs() const { return crossfadeMs_.load(); }
+    // Load next track so it's ready when current finishes (gapless/crossfade)
+    bool loadNext(const std::string& path, std::string& error);
+    void clearNext();
+
     // Oboe callbacks
     oboe::DataCallbackResult onAudioReady(
         oboe::AudioStream* stream, void* audioData, int32_t numFrames) override;
@@ -119,6 +126,19 @@ private:
 
     // ── Analyzer ──
     analyzer::Analyzer analyzer_;
+
+    // ── Crossfade / Gapless ──
+    // Second buffer holds the "next" track for seamless transition.
+    std::vector<float> nextSamples_;
+    int32_t nextSrcSampleRate_ = 0;
+    int32_t nextSrcChannels_ = 0;
+    int64_t nextTotalFrames_ = 0;
+    std::atomic<int> crossfadeMs_{0};             // 0 = gapless hard-cut
+    std::atomic<bool> transitioning_{false};
+    int64_t transitionStartFrame_ = 0;            // source-frame when fade begins
+    int64_t transitionLengthFrames_ = 0;          // fade duration in output frames
+    int64_t transitionFramesDone_ = 0;
+    int64_t nextPositionFrames_ = 0;
 };
 
 } // namespace skb

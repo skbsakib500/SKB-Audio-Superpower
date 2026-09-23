@@ -44,6 +44,7 @@ import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.SurroundSound
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.*
@@ -90,7 +91,8 @@ fun LibraryScreen(
     onOpenSpatialLab: () -> Unit,
     onOpenDeviceLab: () -> Unit,
     onOpenAutoEq: () -> Unit,
-    onOpenAnalyzer: () -> Unit
+    onOpenAnalyzer: () -> Unit,
+    onOpenPlaybackSettings: () -> Unit
 ) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -278,6 +280,10 @@ fun LibraryScreen(
                     fontWeight = FontWeight.Bold, letterSpacing = 3.sp,
                     fontFamily = FontFamily.Monospace)
             }
+            Icon(Icons.Filled.Speed, "Playback",
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(24.dp).clickable { onOpenPlaybackSettings() })
+            Spacer(Modifier.width(18.dp))
             Icon(Icons.Filled.GraphicEq, "Analyzer",
                 tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.size(24.dp).clickable { onOpenAnalyzer() })

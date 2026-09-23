@@ -19,6 +19,7 @@ import com.skbsakib.audiosuperpower.ui.screens.DeviceLabScreen
 import com.skbsakib.audiosuperpower.ui.screens.DspLabScreen
 import com.skbsakib.audiosuperpower.ui.screens.LibraryScreen
 import com.skbsakib.audiosuperpower.ui.screens.PermissionsScreen
+import com.skbsakib.audiosuperpower.ui.screens.PlaybackSettingsScreen
 import com.skbsakib.audiosuperpower.ui.screens.SettingsScreen
 import com.skbsakib.audiosuperpower.ui.screens.SpatialLabScreen
 
@@ -31,6 +32,7 @@ object Routes {
     const val DEVICE_LAB  = "device_lab"
     const val AUTOEQ      = "autoeq"
     const val ANALYZER    = "analyzer"
+    const val PLAYBACK    = "playback"
 }
 
 /** Lab routes opened from HOME — treated like secondary tabs. */
@@ -108,7 +110,8 @@ fun SkbNavHost(
                 onOpenSpatialLab = { navToLab(Routes.SPATIAL_LAB) },
                 onOpenDeviceLab  = { navToLab(Routes.DEVICE_LAB) },
                 onOpenAutoEq     = { navToLab(Routes.AUTOEQ) },
-                onOpenAnalyzer   = { navToLab(Routes.ANALYZER) }
+                onOpenAnalyzer   = { navToLab(Routes.ANALYZER) },
+                onOpenPlaybackSettings = { navToLab(Routes.PLAYBACK) }
             )
         }
 
@@ -177,6 +180,16 @@ fun SkbNavHost(
             popExitTransition = { labPopExit }
         ) {
             AnalyzerScreen(onClose = { nav.popBackStack() })
+        }
+
+        composable(
+            Routes.PLAYBACK,
+            enterTransition = { labEnter },
+            exitTransition = { labExit },
+            popEnterTransition = { labPopEnter },
+            popExitTransition = { labPopExit }
+        ) {
+            PlaybackSettingsScreen(onClose = { nav.popBackStack() })
         }
     }
 }

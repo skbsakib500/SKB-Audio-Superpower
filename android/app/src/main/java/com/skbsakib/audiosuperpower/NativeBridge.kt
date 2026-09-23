@@ -48,6 +48,13 @@ object NativeBridge {
     external fun nativeAnalyzerTakePeak(): Float
     external fun nativeAnalyzerTakeRmsDb(): Float
     external fun nativeAnalyzerIsClipping(): Boolean
+
+    // Crossfade / Gapless
+    external fun nativeSetCrossfadeMs(ms: Int)
+    external fun nativeCrossfadeMs(): Int
+    external fun nativeLoadNext(path: String): Boolean
+    external fun nativeClearNext()
+
     // Spatial
     external fun nativeSetSpatialEnabled(enabled: Boolean)
     external fun nativeSetSpatialMode(mode: Int)

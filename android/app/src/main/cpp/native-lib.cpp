@@ -236,4 +236,31 @@ Java_com_skbsakib_audiosuperpower_NativeBridge_nativeAnalyzerIsClipping(JNIEnv*,
     return ensurePlayer()->analyzerIsClipping() ? JNI_TRUE : JNI_FALSE;
 }
 
+
+// ── Crossfade / Gapless ──
+JNIEXPORT void JNICALL
+Java_com_skbsakib_audiosuperpower_NativeBridge_nativeSetCrossfadeMs(JNIEnv*, jobject, jint ms) {
+    ensurePlayer()->setCrossfadeMs(static_cast<int>(ms));
+}
+
+JNIEXPORT jint JNICALL
+Java_com_skbsakib_audiosuperpower_NativeBridge_nativeCrossfadeMs(JNIEnv*, jobject) {
+    return static_cast<jint>(ensurePlayer()->crossfadeMs());
+}
+
+JNIEXPORT jboolean JNICALL
+Java_com_skbsakib_audiosuperpower_NativeBridge_nativeLoadNext(
+        JNIEnv* env, jobject, jstring jPath) {
+    const char* path = env->GetStringUTFChars(jPath, nullptr);
+    std::string error;
+    bool ok = ensurePlayer()->loadNext(path ? path : "", error);
+    if (path) env->ReleaseStringUTFChars(jPath, path);
+    return ok ? JNI_TRUE : JNI_FALSE;
+}
+
+JNIEXPORT void JNICALL
+Java_com_skbsakib_audiosuperpower_NativeBridge_nativeClearNext(JNIEnv*, jobject) {
+    ensurePlayer()->clearNext();
+}
+
 } // extern "C"
