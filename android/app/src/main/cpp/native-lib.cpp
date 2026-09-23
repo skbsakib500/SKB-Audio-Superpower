@@ -335,7 +335,7 @@ Java_com_skbsakib_audiosuperpower_NativeBridge_nativeAnalyzeLoadedBpmConfidence(
 
 JNIEXPORT jfloatArray JNICALL
 Java_com_skbsakib_audiosuperpower_NativeBridge_nativeAnalyzeLoadedEnergy(JNIEnv* env, jobject) {
-    float lo = 0f, mi = 0f, hi = 0f, cent = 0f;
+    float lo = 0.0f, mi = 0.0f, hi = 0.0f, cent = 0.0f;
     ensurePlayer()->analyzeLoadedEnergy(lo, mi, hi, cent);
     jfloatArray out = env->NewFloatArray(4);
     if (out != nullptr) {

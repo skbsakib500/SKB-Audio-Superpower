@@ -40,7 +40,17 @@ public:
         const float prev = peak_.load(std::memory_order_relaxed);
         if (absv > prev) peak_.store(absv, std::memory_order_relaxed);
 
-        sumSq_.fetch_add(static_cast<double>(mono) * mono, std::memory_order_relaxed);
+        // atomic<double>::fetch_add is C++20 FP-only and may be unimplemented
+        // in the NDK clang we build with. Use a CAS loop instead — safe and
+        // portable across C++17 and C++20.
+        {
+            double cur = sumSq_.load(std::memory_order_relaxed);
+            const double add = static_cast<double>(mono) * mono;
+            while (!sumSq_.compare_exchange_weak(
+                    cur, cur + add,
+                    std::memory_order_relaxed,
+                    std::memory_order_relaxed)) { /* retry */ }
+        }
         samplesCount_.fetch_add(1, std::memory_order_relaxed);
 
         ring_[ringWrite_] = mono;
