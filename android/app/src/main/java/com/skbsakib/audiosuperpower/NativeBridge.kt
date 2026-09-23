@@ -39,6 +39,15 @@ object NativeBridge {
     external fun nativeAutoEqClear()
     external fun nativeAutoEqSetPreamp(db: Float)
     external fun nativeAutoEqAddFilter(type: Int, freq: Float, q: Float, gainDb: Float): Boolean
+
+    // Analyzer
+    external fun nativeSetAnalyzerEnabled(enabled: Boolean)
+    external fun nativeAnalyzerTick()
+    external fun nativeAnalyzerBins(): Int
+    external fun nativeAnalyzerReadSpectrum(): FloatArray
+    external fun nativeAnalyzerTakePeak(): Float
+    external fun nativeAnalyzerTakeRmsDb(): Float
+    external fun nativeAnalyzerIsClipping(): Boolean
     // Spatial
     external fun nativeSetSpatialEnabled(enabled: Boolean)
     external fun nativeSetSpatialMode(mode: Int)

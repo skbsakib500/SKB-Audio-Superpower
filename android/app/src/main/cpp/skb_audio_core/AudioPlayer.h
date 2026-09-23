@@ -13,6 +13,7 @@
 #include "dsp/Limiter.h"
 #include "dsp/AutoEqChain.h"
 #include "spatial/SpatialEngine.h"
+#include "analyzer/Analyzer.h"
 
 namespace skb {
 
@@ -68,6 +69,15 @@ public:
     void autoEqSetPreampDb(float db);
     bool autoEqAddFilter(int type, float freq, float q, float gainDb);
 
+    // ── Analyzer control ──
+    void setAnalyzerEnabled(bool e);
+    void analyzerTick();                          // called from UI poll; runs FFT if ready
+    int  analyzerBins() const;
+    void analyzerReadSpectrum(float* out, int count);
+    float analyzerTakePeak();
+    float analyzerTakeRmsDb();
+    bool  analyzerIsClipping() const;
+
     // Oboe callbacks
     oboe::DataCallbackResult onAudioReady(
         oboe::AudioStream* stream, void* audioData, int32_t numFrames) override;
@@ -106,6 +116,9 @@ private:
     // ── AutoEQ ──
     dsp::AutoEqChain autoEq_;
     std::atomic<bool> autoEqEnabled_{false};
+
+    // ── Analyzer ──
+    analyzer::Analyzer analyzer_;
 };
 
 } // namespace skb

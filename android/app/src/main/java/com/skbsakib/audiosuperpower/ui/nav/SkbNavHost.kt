@@ -5,6 +5,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import com.skbsakib.audiosuperpower.settings.SkbSettings
+import com.skbsakib.audiosuperpower.ui.screens.AnalyzerScreen
 import com.skbsakib.audiosuperpower.ui.screens.AutoEqScreen
 import com.skbsakib.audiosuperpower.ui.screens.DeviceLabScreen
 import com.skbsakib.audiosuperpower.ui.screens.DspLabScreen
@@ -23,6 +24,7 @@ object Routes {
     const val SPATIAL_LAB = "spatial_lab"
     const val DEVICE_LAB  = "device_lab"
     const val AUTOEQ      = "autoeq"
+    const val ANALYZER    = "analyzer"
 }
 
 @Composable
@@ -46,7 +48,8 @@ fun SkbNavHost(
                 onOpenDspLab     = { nav.navigate(Routes.DSP_LAB) },
                 onOpenSpatialLab = { nav.navigate(Routes.SPATIAL_LAB) },
                 onOpenDeviceLab  = { nav.navigate(Routes.DEVICE_LAB) },
-                onOpenAutoEq     = { nav.navigate(Routes.AUTOEQ) }
+                onOpenAutoEq     = { nav.navigate(Routes.AUTOEQ) },
+                onOpenAnalyzer   = { nav.navigate(Routes.ANALYZER) }
             )
         }
         composable(Routes.SETTINGS) {
@@ -62,5 +65,6 @@ fun SkbNavHost(
         composable(Routes.SPATIAL_LAB) { SpatialLabScreen(onClose = { nav.popBackStack() }) }
         composable(Routes.DEVICE_LAB)  { DeviceLabScreen(onClose = { nav.popBackStack() }) }
         composable(Routes.AUTOEQ)      { AutoEqScreen(onClose = { nav.popBackStack() }) }
+        composable(Routes.ANALYZER)    { AnalyzerScreen(onClose = { nav.popBackStack() }) }
     }
 }

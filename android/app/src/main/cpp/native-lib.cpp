@@ -1,6 +1,7 @@
 #include <jni.h>
 #include <memory>
 #include <string>
+#include <vector>
 
 #include "skb_audio_core/skb_version.h"
 #include "skb_audio_core/AudioPlayer.h"
@@ -189,6 +190,50 @@ Java_com_skbsakib_audiosuperpower_NativeBridge_nativeAutoEqAddFilter(
         static_cast<float>(freq),
         static_cast<float>(q),
         static_cast<float>(gainDb)) ? JNI_TRUE : JNI_FALSE;
+}
+
+
+// ── Analyzer control ──
+JNIEXPORT void JNICALL
+Java_com_skbsakib_audiosuperpower_NativeBridge_nativeSetAnalyzerEnabled(JNIEnv*, jobject, jboolean e) {
+    ensurePlayer()->setAnalyzerEnabled(e == JNI_TRUE);
+}
+
+JNIEXPORT void JNICALL
+Java_com_skbsakib_audiosuperpower_NativeBridge_nativeAnalyzerTick(JNIEnv*, jobject) {
+    ensurePlayer()->analyzerTick();
+}
+
+JNIEXPORT jint JNICALL
+Java_com_skbsakib_audiosuperpower_NativeBridge_nativeAnalyzerBins(JNIEnv*, jobject) {
+    return static_cast<jint>(ensurePlayer()->analyzerBins());
+}
+
+JNIEXPORT jfloatArray JNICALL
+Java_com_skbsakib_audiosuperpower_NativeBridge_nativeAnalyzerReadSpectrum(JNIEnv* env, jobject) {
+    const int bins = ensurePlayer()->analyzerBins();
+    std::vector<float> tmp(static_cast<size_t>(bins), 0.0f);
+    ensurePlayer()->analyzerReadSpectrum(tmp.data(), bins);
+    jfloatArray out = env->NewFloatArray(bins);
+    if (out != nullptr) {
+        env->SetFloatArrayRegion(out, 0, bins, tmp.data());
+    }
+    return out;
+}
+
+JNIEXPORT jfloat JNICALL
+Java_com_skbsakib_audiosuperpower_NativeBridge_nativeAnalyzerTakePeak(JNIEnv*, jobject) {
+    return static_cast<jfloat>(ensurePlayer()->analyzerTakePeak());
+}
+
+JNIEXPORT jfloat JNICALL
+Java_com_skbsakib_audiosuperpower_NativeBridge_nativeAnalyzerTakeRmsDb(JNIEnv*, jobject) {
+    return static_cast<jfloat>(ensurePlayer()->analyzerTakeRmsDb());
+}
+
+JNIEXPORT jboolean JNICALL
+Java_com_skbsakib_audiosuperpower_NativeBridge_nativeAnalyzerIsClipping(JNIEnv*, jobject) {
+    return ensurePlayer()->analyzerIsClipping() ? JNI_TRUE : JNI_FALSE;
 }
 
 } // extern "C"

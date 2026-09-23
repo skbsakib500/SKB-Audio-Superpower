@@ -36,6 +36,7 @@ import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Equalizer
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Headphones
+import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.MusicNote
@@ -88,7 +89,8 @@ fun LibraryScreen(
     onOpenDspLab: () -> Unit,
     onOpenSpatialLab: () -> Unit,
     onOpenDeviceLab: () -> Unit,
-    onOpenAutoEq: () -> Unit
+    onOpenAutoEq: () -> Unit,
+    onOpenAnalyzer: () -> Unit
 ) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -276,6 +278,10 @@ fun LibraryScreen(
                     fontWeight = FontWeight.Bold, letterSpacing = 3.sp,
                     fontFamily = FontFamily.Monospace)
             }
+            Icon(Icons.Filled.GraphicEq, "Analyzer",
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(24.dp).clickable { onOpenAnalyzer() })
+            Spacer(Modifier.width(18.dp))
             Icon(Icons.Filled.Headphones, "AutoEQ",
                 tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.size(24.dp).clickable { onOpenAutoEq() })

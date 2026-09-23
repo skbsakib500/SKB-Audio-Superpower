@@ -78,6 +78,7 @@ bool AudioPlayer::openStream(std::string& error) {
     limiter_.setSampleRate(static_cast<float>(stream_->getSampleRate()));
     spatial_.setSampleRate(static_cast<float>(stream_->getSampleRate()));
     autoEq_.setSampleRate(static_cast<float>(stream_->getSampleRate()));
+    analyzer_.setSampleRate(static_cast<float>(stream_->getSampleRate()));
 
     LOGI("Oboe stream opened: device %d Hz, %d ch",
          stream_->getSampleRate(), stream_->getChannelCount());
@@ -211,6 +212,19 @@ bool AudioPlayer::autoEqAddFilter(int t, float f, float q, float g) {
 }
 
 // ─────────────────────────────────────────────────────
+//  Analyzer accessors (called from JNI/UI thread — not audio thread)
+// ─────────────────────────────────────────────────────
+void AudioPlayer::setAnalyzerEnabled(bool e) { analyzer_.enable(e); }
+void AudioPlayer::analyzerTick()             { analyzer_.maybeRunFft(); }
+int  AudioPlayer::analyzerBins() const       { return analyzer::Analyzer::FFT_BINS; }
+void AudioPlayer::analyzerReadSpectrum(float* out, int count) {
+    analyzer_.readSpectrum(out, count);
+}
+float AudioPlayer::analyzerTakePeak()        { return analyzer_.takePeak(); }
+float AudioPlayer::analyzerTakeRmsDb()       { return analyzer_.takeRmsDb(); }
+bool  AudioPlayer::analyzerIsClipping() const{ return analyzer_.isClipping(); }
+
+// ─────────────────────────────────────────────────────
 //  Realtime callback — L/R paired for spatial processing
 // ─────────────────────────────────────────────────────
 oboe::DataCallbackResult AudioPlayer::onAudioReady(
@@ -282,6 +296,9 @@ oboe::DataCallbackResult AudioPlayer::onAudioReady(
         } else {
             out[i * outChannels] = 0.5f * (l + r);
         }
+
+        // Feed analyzer (mono-mixed, post-DSP)
+        analyzer_.pushSample(0.5f * (l + r));
 
         // Advance source position
         if (srcRate == outRate) {
