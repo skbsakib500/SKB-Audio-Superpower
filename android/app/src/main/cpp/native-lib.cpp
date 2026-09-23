@@ -263,4 +263,39 @@ Java_com_skbsakib_audiosuperpower_NativeBridge_nativeClearNext(JNIEnv*, jobject)
     ensurePlayer()->clearNext();
 }
 
+
+// ── ReplayGain ──
+JNIEXPORT void JNICALL
+Java_com_skbsakib_audiosuperpower_NativeBridge_nativeSetReplayGainEnabled(JNIEnv*, jobject, jboolean e) {
+    ensurePlayer()->setReplayGainEnabled(e == JNI_TRUE);
+}
+
+JNIEXPORT void JNICALL
+Java_com_skbsakib_audiosuperpower_NativeBridge_nativeSetReplayGainTargetDb(JNIEnv*, jobject, jfloat db) {
+    ensurePlayer()->setReplayGainTargetDb(static_cast<float>(db));
+}
+
+JNIEXPORT void JNICALL
+Java_com_skbsakib_audiosuperpower_NativeBridge_nativeSetReplayGainPeakDb(JNIEnv*, jobject, jfloat peakDb) {
+    ensurePlayer()->setReplayGainMeasuredPeakDb(static_cast<float>(peakDb));
+}
+
+JNIEXPORT jfloat JNICALL
+Java_com_skbsakib_audiosuperpower_NativeBridge_nativeReplayGainCurrentDb(JNIEnv*, jobject) {
+    return static_cast<jfloat>(ensurePlayer()->replayGainCurrentDb());
+}
+
+JNIEXPORT jfloat JNICALL
+Java_com_skbsakib_audiosuperpower_NativeBridge_nativeReplayGainMeasuredPeakDb(JNIEnv*, jobject) {
+    return static_cast<jfloat>(ensurePlayer()->replayGainMeasuredPeakDb());
+}
+
+
+JNIEXPORT jfloat JNICALL
+Java_com_skbsakib_audiosuperpower_NativeBridge_nativeComputeLoadedPeakDb(JNIEnv*, jobject) {
+    const float lin = ensurePlayer()->computeLoadedPeak();
+    if (lin < 1e-9f) return static_cast<jfloat>(-120.0f);
+    return static_cast<jfloat>(20.0f * std::log10(lin));
+}
+
 } // extern "C"

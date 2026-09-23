@@ -4,7 +4,15 @@ object NativeBridge {
 
     init {
         System.loadLibrary("skb_audio_core")
-    }
+    
+    // ReplayGain
+    external fun nativeSetReplayGainEnabled(enabled: Boolean)
+    external fun nativeSetReplayGainTargetDb(db: Float)
+    external fun nativeSetReplayGainPeakDb(peakDb: Float)
+    external fun nativeReplayGainCurrentDb(): Float
+    external fun nativeReplayGainMeasuredPeakDb(): Float
+    external fun nativeComputeLoadedPeakDb(): Float
+}
 
     // Version
     external fun nativeVersion(): String

@@ -45,6 +45,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.compose.rememberNavController
 import com.skbsakib.audiosuperpower.autoeq.AutoEqController
 import com.skbsakib.audiosuperpower.playback.CrossfadeController
+import com.skbsakib.audiosuperpower.playback.ReplayGainController
 import com.skbsakib.audiosuperpower.settings.SettingsStore
 import com.skbsakib.audiosuperpower.settings.SkbSettings
 import com.skbsakib.audiosuperpower.ui.nav.Routes
@@ -82,6 +83,7 @@ class MainActivity : ComponentActivity() {
             LaunchedEffect(Unit) {
                 AutoEqController.init(ctx.applicationContext)
                 CrossfadeController.init(ctx.applicationContext)
+                ReplayGainController.init(ctx.applicationContext)
                 // Let the composable settle before hiding system splash
                 delay(60)
                 keepSplash = false

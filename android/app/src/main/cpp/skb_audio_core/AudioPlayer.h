@@ -12,6 +12,7 @@
 #include "dsp/EqBank.h"
 #include "dsp/Limiter.h"
 #include "dsp/AutoEqChain.h"
+#include "dsp/ReplayGain.h"
 #include "spatial/SpatialEngine.h"
 #include "analyzer/Analyzer.h"
 
@@ -85,6 +86,18 @@ public:
     bool loadNext(const std::string& path, std::string& error);
     void clearNext();
 
+    // ── ReplayGain ──
+    void  setReplayGainEnabled(bool e);
+    void  setReplayGainTargetDb(float db);
+    void  setReplayGainMeasuredPeak(float peakLin);   // from pre-scan
+    void  setReplayGainMeasuredPeakDb(float peakDb);
+    float replayGainCurrentDb() const;
+    float replayGainMeasuredPeakDb() const;
+
+    // Compute the peak (linear) of the currently loaded track. Fast because
+    // the samples are already in memory. Call after loadWav to auto-apply RG.
+    float computeLoadedPeak() const;
+
     // Oboe callbacks
     oboe::DataCallbackResult onAudioReady(
         oboe::AudioStream* stream, void* audioData, int32_t numFrames) override;
@@ -126,6 +139,10 @@ private:
 
     // ── Analyzer ──
     analyzer::Analyzer analyzer_;
+
+    // ── ReplayGain ──
+    dsp::ReplayGain replayGain_;
+    std::atomic<bool> replayGainEnabled_{false};
 
     // ── Crossfade / Gapless ──
     // Second buffer holds the "next" track for seamless transition.

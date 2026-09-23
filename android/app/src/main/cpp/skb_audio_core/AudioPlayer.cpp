@@ -51,6 +51,7 @@ bool AudioPlayer::loadWav(const std::string& path, std::string& error) {
     limiter_.reset();
     spatial_.reset();
     autoEq_.reset();
+    replayGain_.reset();
 
     // Clear any pending next-track transition
     transitioning_.store(false, std::memory_order_release);
@@ -95,6 +96,7 @@ bool AudioPlayer::openStream(std::string& error) {
     spatial_.setSampleRate(sr);
     autoEq_.setSampleRate(sr);
     analyzer_.setSampleRate(sr);
+    replayGain_.setSampleRate(sr);
 
     LOGI("Oboe stream opened: device %d Hz, %d ch",
          stream_->getSampleRate(), stream_->getChannelCount());
@@ -149,6 +151,7 @@ void AudioPlayer::stop() {
     limiter_.reset();
     spatial_.reset();
     autoEq_.reset();
+    replayGain_.reset();
     transitioning_.store(false, std::memory_order_release);
     state_.store(PlaybackState::Idle, std::memory_order_release);
 }
@@ -239,6 +242,40 @@ float AudioPlayer::analyzerTakeRmsDb()       { return analyzer_.takeRmsDb(); }
 bool  AudioPlayer::analyzerIsClipping() const{ return analyzer_.isClipping(); }
 
 // ─────────────────────────────────────────────────────
+//  ReplayGain accessors
+// ─────────────────────────────────────────────────────
+void AudioPlayer::setReplayGainEnabled(bool e) {
+    replayGainEnabled_.store(e, std::memory_order_release);
+    replayGain_.setEnabled(e);
+}
+void AudioPlayer::setReplayGainTargetDb(float db) {
+    replayGain_.setTargetPeakDb(db);
+}
+void AudioPlayer::setReplayGainMeasuredPeak(float peakLin) {
+    replayGain_.setMeasuredPeak(peakLin);
+}
+void AudioPlayer::setReplayGainMeasuredPeakDb(float peakDb) {
+    replayGain_.setMeasuredPeakDb(peakDb);
+}
+float AudioPlayer::replayGainCurrentDb() const {
+    return replayGain_.currentGainDb();
+}
+float AudioPlayer::replayGainMeasuredPeakDb() const {
+    return replayGain_.measuredPeakDb();
+}
+
+// Scan the loaded samples for the absolute peak. Realtime-safe (off audio
+// thread). Called once per track after decode, before play.
+float AudioPlayer::computeLoadedPeak() const {
+    float peak = 0.0f;
+    for (float s : samples_) {
+        const float a = std::fabs(s);
+        if (a > peak) peak = a;
+    }
+    return peak;
+}
+
+// ─────────────────────────────────────────────────────
 //  Crossfade / Gapless
 // ─────────────────────────────────────────────────────
 void AudioPlayer::setCrossfadeMs(int ms) {
@@ -299,6 +336,7 @@ oboe::DataCallbackResult AudioPlayer::onAudioReady(
     const bool useDsp     = dspEnabled_.load(std::memory_order_relaxed);
     const bool useSpatial = spatialEnabled_.load(std::memory_order_relaxed);
     const bool useAutoEq  = autoEqEnabled_.load(std::memory_order_relaxed);
+    const bool useReplayGain = replayGainEnabled_.load(std::memory_order_relaxed);
 
     // ── Crossfade setup ──
     // Determine if we should start a transition during this block.
@@ -370,6 +408,9 @@ oboe::DataCallbackResult AudioPlayer::onAudioReady(
                 ++transitionFramesDone_;
             }
         }
+
+        // ReplayGain first (headroom-aware normalization)
+        if (useReplayGain) { replayGain_.process(l, r); }
 
         // DSP chain
         if (useDsp)      { l = eq_.process(l, 0); r = eq_.process(r, 1); }

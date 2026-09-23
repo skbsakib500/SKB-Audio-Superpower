@@ -7,6 +7,7 @@ import com.skbsakib.audiosuperpower.library.LazyMetadata
 import com.skbsakib.audiosuperpower.library.PlaybackState
 import com.skbsakib.audiosuperpower.library.Recent
 import com.skbsakib.audiosuperpower.library.Track
+import com.skbsakib.audiosuperpower.playback.ReplayGainController
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -80,6 +81,13 @@ object NativePlayer {
                 _snapshot.value = _snapshot.value.copy(
                     state = PlayerState.ERROR, error = "Native load failed")
                 return@launch
+            }
+
+            // Auto-apply ReplayGain: compute the loaded track's peak in native
+            // and hand it to the controller (which handles enabled/disabled).
+            runCatching {
+                val peakDb = NativeBridge.nativeComputeLoadedPeakDb()
+                ReplayGainController.applyMeasuredPeak(peakDb)
             }
 
             // Enrich metadata lazily (SAF tracks have unknown artist/album initially)

@@ -23,6 +23,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.skbsakib.audiosuperpower.playback.CrossfadeController
+import com.skbsakib.audiosuperpower.playback.ReplayGainController
+import com.skbsakib.audiosuperpower.playback.RgMode
 import com.skbsakib.audiosuperpower.playback.SleepTimer
 
 @Composable
@@ -161,9 +163,10 @@ fun PlaybackSettingsScreen(onClose: () -> Unit) {
 
         Spacer(Modifier.height(28.dp))
 
-        // ── ReplayGain (placeholder) ──
-        SectionLabel("VOLUME NORMALIZATION")
+        // ── ReplayGain ──
+        SectionLabel("VOLUME NORMALIZATION · REPLAYGAIN")
         Spacer(Modifier.height(10.dp))
+
         Surface(color = Color(0x1A00E5FF), shape = RoundedCornerShape(12.dp),
                 modifier = Modifier.fillMaxWidth()) {
             Row(
@@ -172,16 +175,114 @@ fun PlaybackSettingsScreen(onClose: () -> Unit) {
             ) {
                 Column(Modifier.weight(1f)) {
                     Text("REPLAYGAIN",
-                        color = Color(0xFFB0C2D0), fontSize = 12.sp,
+                        color = if (rgState.enabled) MaterialTheme.colorScheme.primary
+                                else Color(0xFFB0C2D0),
+                        fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
                         fontFamily = FontFamily.Monospace)
                     Spacer(Modifier.height(2.dp))
-                    Text("coming in Phase 10 · per-track loudness normalization",
+                    Text("peak-based per-track normalization",
                         color = Color(0xFF7A8FA6), fontSize = 10.sp,
                         fontFamily = FontFamily.Monospace)
                 }
-                Text("PLANNED",
-                    color = Color(0xFF3D5266), fontSize = 9.sp,
-                    letterSpacing = 2.sp, fontFamily = FontFamily.Monospace)
+                Switch(
+                    checked = rgState.enabled,
+                    onCheckedChange = { ReplayGainController.setEnabled(ctx, it) }
+                )
+            }
+        }
+
+        if (rgState.enabled) {
+            Spacer(Modifier.height(10.dp))
+
+            // Mode toggle
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                RgMode.entries.forEach { mode ->
+                    val active = rgState.mode == mode
+                    Surface(
+                        color = if (active) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
+                                else Color(0x1A00E5FF),
+                        shape = RoundedCornerShape(20.dp),
+                        border = if (active) BorderStroke(1.dp, MaterialTheme.colorScheme.primary) else null,
+                        modifier = Modifier.weight(1f).clickable {
+                            ReplayGainController.setMode(ctx, mode)
+                        }
+                    ) {
+                        Box(
+                            Modifier.padding(vertical = 8.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(mode.name,
+                                color = if (active) MaterialTheme.colorScheme.primary else Color(0xFF7A8FA6),
+                                fontSize = 10.sp, letterSpacing = 2.sp,
+                                fontFamily = FontFamily.Monospace)
+                        }
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(10.dp))
+
+            // Target dB slider
+            Text("TARGET PEAK: %+.1f dBFS".format(rgState.targetDb),
+                color = Color(0xFF7A8FA6), fontSize = 10.sp,
+                fontFamily = FontFamily.Monospace)
+            Slider(
+                value = rgState.targetDb,
+                onValueChange = { ReplayGainController.setTargetDb(ctx, it) },
+                valueRange = -12f..0f,
+                steps = 23,
+                colors = SliderDefaults.colors(
+                    thumbColor = MaterialTheme.colorScheme.primary,
+                    activeTrackColor = MaterialTheme.colorScheme.primary,
+                    inactiveTrackColor = Color(0x2200E5FF)
+                ),
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            // Preamp slider
+            Text("PREAMP: %+.1f dB".format(rgState.preampDb),
+                color = Color(0xFF7A8FA6), fontSize = 10.sp,
+                fontFamily = FontFamily.Monospace)
+            Slider(
+                value = rgState.preampDb,
+                onValueChange = { ReplayGainController.setPreampDb(ctx, it) },
+                valueRange = -6f..6f,
+                steps = 23,
+                colors = SliderDefaults.colors(
+                    thumbColor = MaterialTheme.colorScheme.primary,
+                    activeTrackColor = MaterialTheme.colorScheme.primary,
+                    inactiveTrackColor = Color(0x2200E5FF)
+                ),
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            // Live readout
+            Surface(color = Color(0x0D00E5FF), shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.fillMaxWidth()) {
+                Row(
+                    Modifier.padding(14.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column {
+                        Text("MEASURED PEAK",
+                            color = Color(0xFF4A6272), fontSize = 9.sp,
+                            letterSpacing = 2.sp, fontFamily = FontFamily.Monospace)
+                        Text("%+.1f dB".format(rgState.lastMeasuredPeakDb),
+                            color = MaterialTheme.colorScheme.primary,
+                            fontSize = 12.sp, fontFamily = FontFamily.Monospace)
+                    }
+                    Column {
+                        Text("APPLIED GAIN",
+                            color = Color(0xFF4A6272), fontSize = 9.sp,
+                            letterSpacing = 2.sp, fontFamily = FontFamily.Monospace)
+                        Text("%+.1f dB".format(rgState.lastAppliedGainDb),
+                            color = MaterialTheme.colorScheme.primary,
+                            fontSize = 12.sp, fontFamily = FontFamily.Monospace)
+                    }
+                }
             }
         }
 
