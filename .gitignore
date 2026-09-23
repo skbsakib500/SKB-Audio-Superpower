@@ -15,3 +15,15 @@ local.properties
 !debug.keystore
 .skb/tmp/
 *.log
+
+# ── SKB: never commit builds ──
+build/
+.cxx/
+.gradle/
+app-debug.apk
+*.apk.bak
+.skb/*.log
+*.skbbackup
+*.fastscanbak
+*.part2bak
+*.bak
