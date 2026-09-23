@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Concentric sound rings -->
+    <path
+        android:strokeColor="#00E5FF"
+        android:strokeWidth="1.5"
+        android:strokeAlpha="0.25"
+        android:fillColor="#00000000"
+        android:pathData="M54,54m-42,0a42,42 0,1 1,84 0a42,42 0,1 1,-84 0" />
+    <path
+        android:strokeColor="#00E5FF"
+        android:strokeWidth="1.5"
+        android:strokeAlpha="0.40"
+        android:fillColor="#00000000"
+        android:pathData="M54,54m-34,0a34,34 0,1 1,68 0a34,34 0,1 1,-68 0" />
+    <path
+        android:strokeColor="#00E5FF"
+        android:strokeWidth="1.5"
+        android:strokeAlpha="0.65"
+        android:fillColor="#00000000"
+        android:pathData="M54,54m-26,0a26,26 0,1 1,52 0a26,26 0,1 1,-52 0" />
+
+    <!-- Waveform bars (equalizer style) -->
+    <path
+        android:fillColor="#00E5FF"
+        android:pathData="M40,46h3v16h-3z" />
+    <path
+        android:fillColor="#00E5FF"
+        android:pathData="M46,40h3v28h-3z" />
+    <path
+        android:fillColor="#00E5FF"
+        android:pathData="M52,36h3v36h-3z" />
+    <path
+        android:fillColor="#00E5FF"
+        android:pathData="M58,42h3v24h-3z" />
+    <path
+        android:fillColor="#00E5FF"
+        android:pathData="M64,48h3v12h-3z" />
+
+    <!-- Center accent dot -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,54m-2.5,0a2.5,2.5 0,1 1,5 0a2.5,2.5 0,1 1,-5 0" />
+</vector>
