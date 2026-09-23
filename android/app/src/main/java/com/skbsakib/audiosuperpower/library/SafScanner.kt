@@ -4,25 +4,58 @@ import android.content.Context
 import android.database.Cursor
 import android.net.Uri
 import android.provider.DocumentsContract
+import android.provider.OpenableColumns
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /**
  * Fast SAF scanner using DocumentsContract (not DocumentFile).
- * Skips per-file MediaMetadataRetriever — metadata is lazy.
+ *
+ * Indexes:
+ *   • pure audio files (mp3, wav, flac, m4a, aac, ogg, opus, wma, mka, aiff, alac)
+ *   • video containers with an audio track (mp4, m4v, mkv, mov, webm, 3gp, ts, m2ts)
+ *
+ * No per-file MediaMetadataRetriever (metadata is lazy via LazyMetadata).
+ * BFS traversal, resumable-friendly, reports per-folder stats.
  */
 object SafScanner {
 
     private val AUDIO_EXT = setOf(
         "mp3", "wav", "flac", "m4a", "aac",
-        "ogg", "opus", "wma", "mka", "mp4", "aiff", "aif", "alac"
+        "ogg", "opus", "wma", "mka", "aiff", "aif", "alac"
+    )
+
+    private val VIDEO_EXT = setOf(
+        "mp4", "m4v", "mkv", "mov", "webm", "3gp", "ts", "m2ts", "avi"
+    )
+
+    data class FolderStat(
+        val uri: String,
+        val trackCount: Int,
+        val totalBytes: Long,
+        val audioCount: Int,
+        val videoCount: Int
+    )
+
+    data class ScanResult(
+        val tracks: List<Track>,
+        val stats: List<FolderStat>,
+        val elapsedMs: Long
     )
 
     suspend fun scan(context: Context, folderUris: Set<String>): List<Track> =
+        scanWithStats(context, folderUris).tracks
+
+    suspend fun scanWithStats(context: Context, folderUris: Set<String>): ScanResult =
         withContext(Dispatchers.IO) {
-            if (folderUris.isEmpty()) return@withContext emptyList()
-            val out = ArrayList<Track>(512)
-            val seen = HashSet<String>()
+            val t0 = System.currentTimeMillis()
+            if (folderUris.isEmpty()) {
+                return@withContext ScanResult(emptyList(), emptyList(), 0L)
+            }
+
+            val allTracks = ArrayList<Track>(512)
+            val stats = ArrayList<FolderStat>()
+            val globalSeen = HashSet<String>()
 
             for (u in folderUris) {
                 val treeUri = runCatching { Uri.parse(u) }.getOrNull() ?: continue
@@ -34,18 +67,48 @@ object SafScanner {
                     DocumentsContract.buildChildDocumentsUriUsingTree(treeUri, rootDocId)
                 }.getOrNull() ?: continue
 
-                // BFS queue — avoids deep recursion stack overflow
+                val localTracks = ArrayList<Track>(128)
                 val queue = ArrayDeque<Pair<Uri, String>>()
                 queue.addLast(rootChildren to rootDocId)
 
                 while (queue.isNotEmpty()) {
                     val (childrenUri, _) = queue.removeFirst()
-                    walkChildren(context, treeUri, childrenUri, out, seen, queue)
+                    walkChildren(context, treeUri, childrenUri, localTracks, globalSeen, queue)
                 }
+
+                var audioCount = 0
+                var videoCount = 0
+                var totalBytes = 0L
+                localTracks.forEach { t ->
+                    totalBytes += t.sizeBytes
+                    if (isVideoPath(t.path)) videoCount++ else audioCount++
+                }
+
+                stats += FolderStat(
+                    uri = u,
+                    trackCount = localTracks.size,
+                    totalBytes = totalBytes,
+                    audioCount = audioCount,
+                    videoCount = videoCount
+                )
+
+                allTracks += localTracks
             }
-            out.sortBy { it.title.lowercase() }
-            out
+
+            allTracks.sortBy { it.title.lowercase() }
+            ScanResult(
+                tracks = allTracks,
+                stats = stats,
+                elapsedMs = System.currentTimeMillis() - t0
+            )
         }
+
+    fun isVideoPath(path: String): Boolean {
+        val dot = path.lastIndexOf('.')
+        if (dot <= 0) return false
+        val ext = path.substring(dot + 1).lowercase()
+        return ext in VIDEO_EXT
+    }
 
     private fun walkChildren(
         ctx: Context,
@@ -78,6 +141,7 @@ object SafScanner {
                 val mime  = c.getString(mimeCol) ?: ""
                 val size  = if (sizeCol >= 0) c.getLong(sizeCol) else 0L
 
+                // Directory → enqueue
                 if (mime == DocumentsContract.Document.MIME_TYPE_DIR) {
                     val subChildren = runCatching {
                         DocumentsContract.buildChildDocumentsUriUsingTree(treeUri, docId)
@@ -86,10 +150,17 @@ object SafScanner {
                     continue
                 }
 
+                // Determine by mime first (more reliable than extension)
+                val isAudio = mime.startsWith("audio/")
+                val isVideo = mime.startsWith("video/")
+
+                // Fall back to extension
                 val dot = name.lastIndexOf('.')
-                if (dot <= 0) continue
-                val ext = name.substring(dot + 1).lowercase()
-                if (ext !in AUDIO_EXT) continue
+                val ext = if (dot > 0) name.substring(dot + 1).lowercase() else ""
+                val extAudio = ext in AUDIO_EXT
+                val extVideo = ext in VIDEO_EXT
+
+                if (!isAudio && !isVideo && !extAudio && !extVideo) continue
 
                 val fileUri = runCatching {
                     DocumentsContract.buildDocumentUriUsingTree(treeUri, docId)
@@ -100,9 +171,9 @@ object SafScanner {
 
                 out += Track(
                     id = uriStr.hashCode().toLong(),
-                    title = name.substring(0, dot),
+                    title = if (dot > 0) name.substring(0, dot) else name,
                     artist = "Unknown artist",
-                    album = "Unknown album",
+                    album = if (isVideo || extVideo) "Video Library" else "Unknown album",
                     durationMs = 0L,
                     path = uriStr,
                     sizeBytes = size

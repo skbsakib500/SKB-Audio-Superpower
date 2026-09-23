@@ -73,12 +73,35 @@ object AudioDecoder {
             return null
         }
 
-        val idx = (0 until extractor.trackCount).firstOrNull { i ->
-            extractor.getTrackFormat(i).getString(MediaFormat.KEY_MIME)
-                ?.startsWith("audio/") == true
+        // Select first audio track. For video containers (mp4/mkv/mov/...),
+        // MediaExtractor exposes each stream separately — we only want the
+        // audio one. Prefer higher bitrate / multi-channel audio if multiple.
+        var bestIdx: Int = -1
+        var bestScore: Long = -1
+        for (i in 0 until extractor.trackCount) {
+            val fmt = extractor.getTrackFormat(i)
+            val mime = fmt.getString(MediaFormat.KEY_MIME) ?: continue
+            if (!mime.startsWith("audio/")) continue
+            val bitrate = runCatching {
+                if (fmt.containsKey(MediaFormat.KEY_BIT_RATE))
+                    fmt.getInteger(MediaFormat.KEY_BIT_RATE).toLong() else 0L
+            }.getOrDefault(0L)
+            val channels = runCatching {
+                if (fmt.containsKey(MediaFormat.KEY_CHANNEL_COUNT))
+                    fmt.getInteger(MediaFormat.KEY_CHANNEL_COUNT).toLong() else 1L
+            }.getOrDefault(1L)
+            // Score = bitrate * channels (prefer richest track)
+            val score = (bitrate.coerceAtLeast(1L)) * channels.coerceAtLeast(1L)
+            if (score > bestScore) {
+                bestScore = score
+                bestIdx = i
+            }
         }
-        if (idx == null) {
-            extractor.release(); return null
+        val idx = bestIdx
+        if (idx < 0) {
+            Log.e(TAG, "no audio track in $sourcePath")
+            runCatching { extractor.release() }
+            return null
         }
 
         extractor.selectTrack(idx)

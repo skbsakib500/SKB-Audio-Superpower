@@ -44,6 +44,7 @@ import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.SurroundSound
 import androidx.compose.material.icons.filled.Stop
@@ -335,6 +336,10 @@ fun LibraryScreen(
                 horizontalArrangement = Arrangement.spacedBy(18.dp)
             ) {
                 InfoChip("TRACKS", displayed.size.toString())
+                val videoCount = displayed.count { it.isVideo }
+                if (videoCount > 0) {
+                    InfoChip("VIDEO", videoCount.toString())
+                }
                 InfoChip("QUEUE", snapshot.queueSize.toString())
                 InfoChip("PLAYER", snapshot.state.name)
                 Spacer(Modifier.weight(1f))
@@ -386,6 +391,32 @@ fun LibraryScreen(
                                 fontSize = 12.sp, fontFamily = FontFamily.Monospace)
                         }
                     }
+                }
+            }
+        }
+
+        // Folder stats (FOLDERS tab only, when we have tracks)
+        if (tab == LibraryTab.FOLDERS && folderTracks.isNotEmpty()) {
+            val audioCount = folderTracks.count { !it.isVideo }
+            val videoCount = folderTracks.count { it.isVideo }
+            val totalBytes = folderTracks.sumOf { it.sizeBytes }
+            val totalMb = totalBytes / 1_000_000.0
+
+            Surface(
+                color = Color(0x0D00E5FF),
+                shape = RoundedCornerShape(10.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 6.dp)
+            ) {
+                Row(
+                    Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                    horizontalArrangement = Arrangement.spacedBy(20.dp)
+                ) {
+                    MiniStat("AUDIO", audioCount.toString())
+                    if (videoCount > 0) MiniStat("VIDEO", videoCount.toString())
+                    MiniStat("SIZE", "%.1f MB".format(totalMb))
+                    MiniStat("FOLDERS", folderUris.size.toString())
                 }
             }
         }
@@ -612,6 +643,20 @@ private fun TrackRow(
                         fontSize = 14.sp, fontWeight = FontWeight.Medium,
                         fontFamily = FontFamily.Monospace, maxLines = 1,
                         modifier = Modifier.weight(1f, fill = false))
+                    if (t.isVideo) {
+                        Spacer(Modifier.width(6.dp))
+                        Icon(Icons.Filled.VideoLibrary, "Video",
+                            tint = Color(0xFF7A8FA6),
+                            modifier = Modifier.size(12.dp))
+                    }
+                    if (t.isHiRes) {
+                        Spacer(Modifier.width(4.dp))
+                        Text("HR",
+                            color = Color(0xFFB4FF39),
+                            fontSize = 8.sp, letterSpacing = 1.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = FontFamily.Monospace)
+                    }
                     if (isFavorite) {
                         Spacer(Modifier.width(6.dp))
                         Icon(Icons.Filled.Favorite, null,
@@ -620,7 +665,10 @@ private fun TrackRow(
                     }
                 }
                 Spacer(Modifier.height(2.dp))
-                Text("${t.artist} · ${t.album}", color = Color(0xFF7A8FA6),
+                Text(
+                    if (t.isVideo) "${t.artist} · ${t.extension.uppercase()} · video audio track"
+                    else "${t.artist} · ${t.album}",
+                    color = Color(0xFF7A8FA6),
                     fontSize = 11.sp, fontFamily = FontFamily.Monospace, maxLines = 1)
             }
             Spacer(Modifier.width(10.dp))
@@ -731,4 +779,14 @@ private fun MiniPlayerBar(
 private fun formatMs(ms: Long): String {
     val s = ms / 1000
     return "%d:%02d".format(s / 60, s % 60)
+}
+
+@Composable
+private fun MiniStat(label: String, value: String) {
+    Column {
+        Text(label, color = Color(0xFF4A6272), fontSize = 8.sp,
+            letterSpacing = 2.sp, fontFamily = FontFamily.Monospace)
+        Text(value, color = MaterialTheme.colorScheme.primary, fontSize = 12.sp,
+            fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Medium)
+    }
 }
