@@ -11,6 +11,7 @@
 #include "WavReader.h"
 #include "dsp/EqBank.h"
 #include "dsp/Limiter.h"
+#include "dsp/AutoEqChain.h"
 #include "spatial/SpatialEngine.h"
 
 namespace skb {
@@ -61,6 +62,12 @@ public:
     void setSpatialIntensity(float i);   // 0..1
     void resetSpatial();
 
+    // ── AutoEQ control ──
+    void setAutoEqEnabled(bool e);
+    void autoEqClear();
+    void autoEqSetPreampDb(float db);
+    bool autoEqAddFilter(int type, float freq, float q, float gainDb);
+
     // Oboe callbacks
     oboe::DataCallbackResult onAudioReady(
         oboe::AudioStream* stream, void* audioData, int32_t numFrames) override;
@@ -95,6 +102,10 @@ private:
     // ── Spatial ──
     spatial::SpatialEngine spatial_;
     std::atomic<bool> spatialEnabled_{false};
+
+    // ── AutoEQ ──
+    dsp::AutoEqChain autoEq_;
+    std::atomic<bool> autoEqEnabled_{false};
 };
 
 } // namespace skb

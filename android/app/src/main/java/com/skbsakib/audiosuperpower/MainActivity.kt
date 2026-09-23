@@ -15,6 +15,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.compose.rememberNavController
+import com.skbsakib.audiosuperpower.autoeq.AutoEqController
 import com.skbsakib.audiosuperpower.device.DeviceProfileController
 import com.skbsakib.audiosuperpower.settings.SettingsStore
 import com.skbsakib.audiosuperpower.settings.SkbSettings
@@ -39,6 +40,7 @@ class MainActivity : ComponentActivity() {
             // One-shot device auto-tune on cold start
             LaunchedEffect(Unit) {
                 DeviceProfileController.autoApply(ctx.applicationContext)
+                AutoEqController.init(ctx.applicationContext)
             }
 
             SkbTheme(accent = AccentPalette.from(settings.accentColor)) {

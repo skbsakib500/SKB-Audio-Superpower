@@ -77,6 +77,7 @@ bool AudioPlayer::openStream(std::string& error) {
     eq_.setSampleRate(static_cast<float>(stream_->getSampleRate()));
     limiter_.setSampleRate(static_cast<float>(stream_->getSampleRate()));
     spatial_.setSampleRate(static_cast<float>(stream_->getSampleRate()));
+    autoEq_.setSampleRate(static_cast<float>(stream_->getSampleRate()));
 
     LOGI("Oboe stream opened: device %d Hz, %d ch",
          stream_->getSampleRate(), stream_->getChannelCount());
@@ -130,6 +131,7 @@ void AudioPlayer::stop() {
     eq_.reset();
     limiter_.reset();
     spatial_.reset();
+    autoEq_.reset();
     state_.store(PlaybackState::Idle, std::memory_order_release);
 }
 
@@ -195,6 +197,20 @@ void AudioPlayer::setSpatialIntensity(float i) { spatial_.setIntensity(i); }
 void AudioPlayer::resetSpatial()               { spatial_.reset(); }
 
 // ─────────────────────────────────────────────────────
+//  AutoEQ control
+// ─────────────────────────────────────────────────────
+void AudioPlayer::setAutoEqEnabled(bool e) {
+    autoEqEnabled_.store(e, std::memory_order_release);
+    autoEq_.setEnabled(e);
+}
+
+void AudioPlayer::autoEqClear()                       { autoEq_.clear(); }
+void AudioPlayer::autoEqSetPreampDb(float db)         { autoEq_.setPreampDb(db); }
+bool AudioPlayer::autoEqAddFilter(int t, float f, float q, float g) {
+    return autoEq_.addFilter(t, f, q, g);
+}
+
+// ─────────────────────────────────────────────────────
 //  Realtime callback — L/R paired for spatial processing
 // ─────────────────────────────────────────────────────
 oboe::DataCallbackResult AudioPlayer::onAudioReady(
@@ -238,6 +254,11 @@ oboe::DataCallbackResult AudioPlayer::onAudioReady(
         if (useDsp) {
             l = eq_.process(l, 0);
             r = eq_.process(r, 1);
+        }
+
+        // 1b) AutoEQ correction (per-headphone)
+        if (useAutoEq) {
+            autoEq_.process(l, r);
         }
 
         // 2) Spatial (stereo paired)

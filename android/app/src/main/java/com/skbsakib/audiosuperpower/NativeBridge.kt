@@ -33,6 +33,12 @@ object NativeBridge {
     external fun nativeSetLimiterCeiling(db: Float)
     external fun nativeResetDsp()
 
+
+    // AutoEQ
+    external fun nativeSetAutoEqEnabled(enabled: Boolean)
+    external fun nativeAutoEqClear()
+    external fun nativeAutoEqSetPreamp(db: Float)
+    external fun nativeAutoEqAddFilter(type: Int, freq: Float, q: Float, gainDb: Float): Boolean
     // Spatial
     external fun nativeSetSpatialEnabled(enabled: Boolean)
     external fun nativeSetSpatialMode(mode: Int)

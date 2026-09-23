@@ -164,4 +164,31 @@ Java_com_skbsakib_audiosuperpower_NativeBridge_nativeResetSpatial(JNIEnv*, jobje
     ensurePlayer()->resetSpatial();
 }
 
+
+// ── AutoEQ control ──
+JNIEXPORT void JNICALL
+Java_com_skbsakib_audiosuperpower_NativeBridge_nativeSetAutoEqEnabled(JNIEnv*, jobject, jboolean e) {
+    ensurePlayer()->setAutoEqEnabled(e == JNI_TRUE);
+}
+
+JNIEXPORT void JNICALL
+Java_com_skbsakib_audiosuperpower_NativeBridge_nativeAutoEqClear(JNIEnv*, jobject) {
+    ensurePlayer()->autoEqClear();
+}
+
+JNIEXPORT void JNICALL
+Java_com_skbsakib_audiosuperpower_NativeBridge_nativeAutoEqSetPreamp(JNIEnv*, jobject, jfloat db) {
+    ensurePlayer()->autoEqSetPreampDb(static_cast<float>(db));
+}
+
+JNIEXPORT jboolean JNICALL
+Java_com_skbsakib_audiosuperpower_NativeBridge_nativeAutoEqAddFilter(
+        JNIEnv*, jobject, jint type, jfloat freq, jfloat q, jfloat gainDb) {
+    return ensurePlayer()->autoEqAddFilter(
+        static_cast<int>(type),
+        static_cast<float>(freq),
+        static_cast<float>(q),
+        static_cast<float>(gainDb)) ? JNI_TRUE : JNI_FALSE;
+}
+
 } // extern "C"
