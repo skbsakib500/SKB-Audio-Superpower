@@ -5,6 +5,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import com.skbsakib.audiosuperpower.settings.SkbSettings
+import com.skbsakib.audiosuperpower.ui.screens.DeviceLabScreen
 import com.skbsakib.audiosuperpower.ui.screens.DspLabScreen
 import com.skbsakib.audiosuperpower.ui.screens.FullPlayerScreen
 import com.skbsakib.audiosuperpower.ui.screens.LibraryScreen
@@ -19,6 +20,7 @@ object Routes {
     const val PLAYER      = "player"
     const val DSP_LAB     = "dsp_lab"
     const val SPATIAL_LAB = "spatial_lab"
+    const val DEVICE_LAB  = "device_lab"
 }
 
 @Composable
@@ -37,10 +39,11 @@ fun SkbNavHost(
         composable(Routes.HOME) {
             LibraryScreen(
                 settings = settings,
-                onOpenSettings = { nav.navigate(Routes.SETTINGS) },
-                onOpenPlayer   = { nav.navigate(Routes.PLAYER) },
-                onOpenDspLab   = { nav.navigate(Routes.DSP_LAB) },
-                onOpenSpatialLab = { nav.navigate(Routes.SPATIAL_LAB) }
+                onOpenSettings   = { nav.navigate(Routes.SETTINGS) },
+                onOpenPlayer     = { nav.navigate(Routes.PLAYER) },
+                onOpenDspLab     = { nav.navigate(Routes.DSP_LAB) },
+                onOpenSpatialLab = { nav.navigate(Routes.SPATIAL_LAB) },
+                onOpenDeviceLab  = { nav.navigate(Routes.DEVICE_LAB) }
             )
         }
         composable(Routes.SETTINGS) {
@@ -51,14 +54,9 @@ fun SkbNavHost(
                 onHapticsChange = onHapticsChange
             )
         }
-        composable(Routes.PLAYER) {
-            FullPlayerScreen(onClose = { nav.popBackStack() })
-        }
-        composable(Routes.DSP_LAB) {
-            DspLabScreen(onClose = { nav.popBackStack() })
-        }
-        composable(Routes.SPATIAL_LAB) {
-            SpatialLabScreen(onClose = { nav.popBackStack() })
-        }
+        composable(Routes.PLAYER)      { FullPlayerScreen(onClose = { nav.popBackStack() }) }
+        composable(Routes.DSP_LAB)     { DspLabScreen(onClose = { nav.popBackStack() }) }
+        composable(Routes.SPATIAL_LAB) { SpatialLabScreen(onClose = { nav.popBackStack() }) }
+        composable(Routes.DEVICE_LAB)  { DeviceLabScreen(onClose = { nav.popBackStack() }) }
     }
 }

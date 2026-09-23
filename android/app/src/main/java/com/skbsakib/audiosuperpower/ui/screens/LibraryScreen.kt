@@ -40,6 +40,7 @@ import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SurroundSound
 import androidx.compose.material.icons.filled.Stop
@@ -84,7 +85,8 @@ fun LibraryScreen(
     onOpenSettings: () -> Unit,
     onOpenPlayer: () -> Unit,
     onOpenDspLab: () -> Unit,
-    onOpenSpatialLab: () -> Unit
+    onOpenSpatialLab: () -> Unit,
+    onOpenDeviceLab: () -> Unit
 ) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -272,6 +274,10 @@ fun LibraryScreen(
                     fontWeight = FontWeight.Bold, letterSpacing = 3.sp,
                     fontFamily = FontFamily.Monospace)
             }
+            Icon(Icons.Filled.PhoneAndroid, "Device Lab",
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(24.dp).clickable { onOpenDeviceLab() })
+            Spacer(Modifier.width(18.dp))
             Icon(Icons.Filled.SurroundSound, "Spatial Lab",
                 tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.size(24.dp).clickable { onOpenSpatialLab() })

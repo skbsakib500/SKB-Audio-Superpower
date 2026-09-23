@@ -15,6 +15,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.compose.rememberNavController
+import com.skbsakib.audiosuperpower.device.DeviceProfileController
 import com.skbsakib.audiosuperpower.settings.SettingsStore
 import com.skbsakib.audiosuperpower.settings.SkbSettings
 import com.skbsakib.audiosuperpower.ui.nav.Routes
@@ -34,6 +35,11 @@ class MainActivity : ComponentActivity() {
             val scope = rememberCoroutineScope()
 
             val hasAudioPerm = remember { mutableStateOf(checkAudioPermission()) }
+
+            // One-shot device auto-tune on cold start
+            LaunchedEffect(Unit) {
+                DeviceProfileController.autoApply(ctx.applicationContext)
+            }
 
             SkbTheme(accent = AccentPalette.from(settings.accentColor)) {
                 Surface(Modifier.fillMaxSize(), color = Color.Black) {
