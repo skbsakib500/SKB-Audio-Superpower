@@ -55,19 +55,7 @@ fun ShellNavGraph(
         }
 
         composable(AppRoute.Library.route) {
-            LibraryScreen(
-                settings = settings,
-                onOpenSettings = onOpenSettings,
-                onOpenPlayer = onOpenPlayer,
-                onOpenDspLab = { nav.navigate(AppRoute.DspLab.route) },
-                onOpenSpatialLab = { nav.navigate(AppRoute.Spatial.route) },
-                onOpenDeviceLab = { nav.navigate(AppRoute.DeviceLab.route) },
-                onOpenAutoEq = { nav.navigate(AppRoute.AutoEq.route) },
-                onOpenAnalyzer = { nav.navigate(AppRoute.Analyzer.route) },
-                onOpenPlaybackSettings = { nav.navigate(AppRoute.PlaybackSettings.route) },
-                onOpenGlobalEffect = { nav.navigate(AppRoute.GlobalEffect.route) },
-                onOpenCloud = { nav.navigate(AppRoute.Cloud.route) }
-            )
+            LibraryScreen(onOpenSettings = onOpenSettings)
         }
 
         composable(AppRoute.DspLab.route) {

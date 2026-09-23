@@ -1,27 +1,14 @@
 package com.skbsakib.audiosuperpower.ui.screens
 
 import android.app.Activity
-import android.content.ContentUris
-import android.content.Context
 import android.content.Intent
-import android.content.IntentSender
 import android.net.Uri
-import android.os.Build
-import android.provider.MediaStore
 import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
-import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
@@ -30,35 +17,28 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.FavoriteBorder
-import androidx.compose.material.icons.filled.Equalizer
 import androidx.compose.material.icons.filled.Folder
-import androidx.compose.material.icons.filled.Headphones
-import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.LibraryMusic
-import androidx.compose.material.icons.filled.MusicNote
-import androidx.compose.material.icons.filled.Pause
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Public
-import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.VideoLibrary
-import androidx.compose.material.icons.filled.Speed
-import androidx.compose.material.icons.filled.SurroundSound
-import androidx.compose.material.icons.filled.Stop
-import androidx.compose.material3.*
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxValue
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -73,9 +53,14 @@ import com.skbsakib.audiosuperpower.library.SafScanner
 import com.skbsakib.audiosuperpower.library.Track
 import com.skbsakib.audiosuperpower.playback.PlaybackService
 import com.skbsakib.audiosuperpower.player.NativePlayer
-import com.skbsakib.audiosuperpower.player.PlayerState
-import com.skbsakib.audiosuperpower.settings.SkbSettings
 import com.skbsakib.audiosuperpower.ui.components.TrackContextSheet
+import com.skbsakib.audiosuperpower.ui.screens.library.components.InfoChip
+import com.skbsakib.audiosuperpower.ui.screens.library.components.LibraryEmptyState
+import com.skbsakib.audiosuperpower.ui.screens.library.components.LibraryTabChip
+import com.skbsakib.audiosuperpower.ui.screens.library.components.MiniStat
+import com.skbsakib.audiosuperpower.ui.screens.library.components.TrackRow
+import com.skbsakib.audiosuperpower.ui.screens.library.util.performDelete
+import com.skbsakib.audiosuperpower.ui.theme.LocalThemeVariant
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -84,23 +69,13 @@ private const val TAG = "SKB-Library"
 
 enum class LibraryTab { SYSTEM, FOLDERS, FAVORITES, RECENT }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LibraryScreen(
-    settings: SkbSettings,
-    onOpenSettings: () -> Unit,
-    onOpenPlayer: () -> Unit,
-    onOpenDspLab: () -> Unit,
-    onOpenSpatialLab: () -> Unit,
-    onOpenDeviceLab: () -> Unit,
-    onOpenAutoEq: () -> Unit,
-    onOpenAnalyzer: () -> Unit,
-    onOpenPlaybackSettings: () -> Unit,
-    onOpenGlobalEffect: () -> Unit,
-    onOpenCloud: () -> Unit
+    onOpenSettings: () -> Unit
 ) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
+    val variant = LocalThemeVariant.current
 
     // ── Base lists ──
     var systemTracks by remember { mutableStateOf<List<Track>>(emptyList()) }
@@ -131,8 +106,7 @@ fun LibraryScreen(
         if (uri != null) {
             try {
                 ctx.contentResolver.takePersistableUriPermission(
-                    uri,
-                    Intent.FLAG_GRANT_READ_URI_PERMISSION
+                    uri, Intent.FLAG_GRANT_READ_URI_PERMISSION
                 )
             } catch (t: Throwable) {
                 Log.w(TAG, "persist permission failed: ${t.message}")
@@ -159,7 +133,6 @@ fun LibraryScreen(
         scanning = false
     }
 
-    // ── Feed active tab's list into player for next/prev ──
     val displayed: List<Track> = when (tab) {
         LibraryTab.SYSTEM -> systemTracks
         LibraryTab.FOLDERS -> folderTracks
@@ -170,7 +143,7 @@ fun LibraryScreen(
         NativePlayer.setLibrary(displayed, -1)
     }
 
-    // ── Delete intent launcher ──
+    // ── Delete launcher ──
     val deleteLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartIntentSenderForResult()
     ) { result ->
@@ -183,7 +156,7 @@ fun LibraryScreen(
         pendingDelete = null
     }
 
-    // ── Delete confirm dialog ──
+    // ── Delete dialog ──
     if (pendingDelete != null) {
         val t = pendingDelete!!
         AlertDialog(
@@ -268,7 +241,7 @@ fun LibraryScreen(
     // ═══════════════════════════════════════════════════════
     Column(
         Modifier.fillMaxSize()
-            .background(Brush.verticalGradient(listOf(Color(0xFF050810), Color(0xFF0A1220))))
+            .background(Brush.verticalGradient(listOf(variant.background, variant.backgroundAlt)))
     ) {
         // Header
         Row(
@@ -285,38 +258,6 @@ fun LibraryScreen(
                     fontWeight = FontWeight.Bold, letterSpacing = 3.sp,
                     fontFamily = FontFamily.Monospace)
             }
-            Icon(Icons.Filled.Speed, "Playback",
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(24.dp).clickable { onOpenPlaybackSettings() })
-            Spacer(Modifier.width(18.dp))
-            Icon(Icons.Filled.GraphicEq, "Analyzer",
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(24.dp).clickable { onOpenAnalyzer() })
-            Spacer(Modifier.width(18.dp))
-            Icon(Icons.Filled.Headphones, "AutoEQ",
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(24.dp).clickable { onOpenAutoEq() })
-            Spacer(Modifier.width(18.dp))
-            Icon(Icons.Filled.PhoneAndroid, "Device Lab",
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(24.dp).clickable { onOpenDeviceLab() })
-            Spacer(Modifier.width(18.dp))
-            Icon(Icons.Filled.SurroundSound, "Spatial Lab",
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(24.dp).clickable { onOpenSpatialLab() })
-            Spacer(Modifier.width(18.dp))
-            Icon(Icons.Filled.Equalizer, "DSP Lab",
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(24.dp).clickable { onOpenDspLab() })
-            Spacer(Modifier.width(18.dp))
-            Icon(Icons.Filled.Cloud, "Cloud",
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(24.dp).clickable { onOpenCloud() })
-            Spacer(Modifier.width(18.dp))
-            Icon(Icons.Filled.Public, "Global Effect",
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(24.dp).clickable { onOpenGlobalEffect() })
-            Spacer(Modifier.width(18.dp))
             Icon(Icons.Filled.Settings, "Settings",
                 tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.size(24.dp).clickable { onOpenSettings() })
@@ -329,13 +270,13 @@ fun LibraryScreen(
             Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            TabChip("SYSTEM", Icons.Filled.LibraryMusic, tab == LibraryTab.SYSTEM, Modifier.weight(1f)) { tab = LibraryTab.SYSTEM }
-            TabChip("FOLDERS", Icons.Filled.Folder, tab == LibraryTab.FOLDERS, Modifier.weight(1f)) { tab = LibraryTab.FOLDERS }
-            TabChip("FAVS", Icons.Filled.Favorite, tab == LibraryTab.FAVORITES, Modifier.weight(1f)) { tab = LibraryTab.FAVORITES }
-            TabChip("RECENT", Icons.Filled.History, tab == LibraryTab.RECENT, Modifier.weight(1f)) { tab = LibraryTab.RECENT }
+            LibraryTabChip("SYSTEM", Icons.Filled.LibraryMusic, tab == LibraryTab.SYSTEM, Modifier.weight(1f)) { tab = LibraryTab.SYSTEM }
+            LibraryTabChip("FOLDERS", Icons.Filled.Folder, tab == LibraryTab.FOLDERS, Modifier.weight(1f)) { tab = LibraryTab.FOLDERS }
+            LibraryTabChip("FAVS", Icons.Filled.Favorite, tab == LibraryTab.FAVORITES, Modifier.weight(1f)) { tab = LibraryTab.FAVORITES }
+            LibraryTabChip("RECENT", Icons.Filled.History, tab == LibraryTab.RECENT, Modifier.weight(1f)) { tab = LibraryTab.RECENT }
         }
 
-        // Status strip + actions
+        // Status strip
         Surface(color = Color(0x1100E5FF)) {
             Row(
                 Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 10.dp),
@@ -344,16 +285,13 @@ fun LibraryScreen(
             ) {
                 InfoChip("TRACKS", displayed.size.toString())
                 val videoCount = displayed.count { it.isVideo }
-                if (videoCount > 0) {
-                    InfoChip("VIDEO", videoCount.toString())
-                }
+                if (videoCount > 0) InfoChip("VIDEO", videoCount.toString())
                 InfoChip("QUEUE", snapshot.queueSize.toString())
                 InfoChip("PLAYER", snapshot.state.name)
                 Spacer(Modifier.weight(1f))
                 if (tab == LibraryTab.FOLDERS) {
                     Row(
-                        Modifier
-                            .clickable { folderPicker.launch(null) }
+                        Modifier.clickable { folderPicker.launch(null) }
                             .padding(horizontal = 8.dp, vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -370,7 +308,7 @@ fun LibraryScreen(
             }
         }
 
-        // Folder chips (only FOLDERS tab)
+        // Folder chips
         if (tab == LibraryTab.FOLDERS && folderUris.isNotEmpty()) {
             Row(
                 Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
@@ -402,7 +340,7 @@ fun LibraryScreen(
             }
         }
 
-        // Folder stats (FOLDERS tab only, when we have tracks)
+        // Folder stats
         if (tab == LibraryTab.FOLDERS && folderTracks.isNotEmpty()) {
             val audioCount = folderTracks.count { !it.isVideo }
             val videoCount = folderTracks.count { it.isVideo }
@@ -412,9 +350,7 @@ fun LibraryScreen(
             Surface(
                 color = Color(0x0D00E5FF),
                 shape = RoundedCornerShape(10.dp),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 6.dp)
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp)
             ) {
                 Row(
                     Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
@@ -431,13 +367,14 @@ fun LibraryScreen(
         // List
         Box(Modifier.weight(1f)) {
             when {
-                scanning && displayed.isEmpty() -> CenterMessage("SCANNING…", showSpinner = true)
+                scanning && displayed.isEmpty() ->
+                    LibraryEmptyState("SCANNING…", showSpinner = true)
 
                 tab == LibraryTab.FOLDERS && folderUris.isEmpty() ->
-                    CenterMessage("NO FOLDERS ADDED",
+                    LibraryEmptyState("NO FOLDERS ADDED",
                         hint = "tap ADD FOLDER above to pick a folder")
 
-                displayed.isEmpty() -> CenterMessage(
+                displayed.isEmpty() -> LibraryEmptyState(
                     when (tab) {
                         LibraryTab.SYSTEM -> "NO AUDIO FILES"
                         LibraryTab.FOLDERS -> "NO AUDIO IN FOLDERS"
@@ -481,8 +418,7 @@ fun LibraryScreen(
                         ) {
                             TrackRow(
                                 t = t,
-                                isCurrent = snapshot.title == t.title &&
-                                            snapshot.artist == t.artist,
+                                isCurrent = snapshot.title == t.title && snapshot.artist == t.artist,
                                 isFavorite = Favorites.keyOf(t) in favKeys,
                                 onTap = {
                                     val idx = displayed.indexOfFirst { it.path == t.path }
@@ -495,305 +431,9 @@ fun LibraryScreen(
                             )
                         }
                     }
-                    item { Spacer(Modifier.height(110.dp)) }
+                    item { Spacer(Modifier.height(16.dp)) }
                 }
             }
         }
-
-        // Mini player
-        if (snapshot.state != PlayerState.IDLE && snapshot.title.isNotBlank()) {
-            MiniPlayerBar(
-                snapshot = snapshot,
-                onPlayPause = {
-                    NativePlayer.togglePlayPause()
-                    val i = Intent(ctx, PlaybackService::class.java)
-                    i.action = if (snapshot.state == PlayerState.PLAYING)
-                        PlaybackService.ACTION_PAUSE else PlaybackService.ACTION_PLAY
-                    ctx.startService(i)
-                },
-                onStop = {
-                    NativePlayer.stop()
-                    PlaybackService.stopService(ctx)
-                },
-                onSeek = { NativePlayer.seekToFraction(it) },
-                onSwipeLeft = { NativePlayer.next() },
-                onSwipeRight = { NativePlayer.previous() },
-                onSwipeUp = { onOpenPlayer() },
-                onTap = { onOpenPlayer() }
-            )
-        }
-    }
-}
-
-// ═══════════════════════════════════════════════════════
-//  Helpers
-// ═══════════════════════════════════════════════════════
-
-private fun performDelete(
-    context: Context, track: Track,
-    onRequest: (IntentSender) -> Unit,
-    onDirectSuccess: () -> Unit
-) {
-    val isContent = track.path.startsWith("content://", ignoreCase = true)
-    if (isContent) {
-        // SAF — files we don't own can't be deleted via MediaStore. Skip.
-        Log.w(TAG, "cannot delete SAF track without DocumentsContract delete; skipping")
-        return
-    }
-    val uri = ContentUris.withAppendedId(
-        MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, track.id)
-    if (Build.VERSION.SDK_INT >= 30) {
-        try {
-            val pi = MediaStore.createDeleteRequest(context.contentResolver, listOf(uri))
-            onRequest(pi.intentSender)
-        } catch (t: Throwable) { Log.e(TAG, "createDeleteRequest: ${t.message}") }
-    } else {
-        try {
-            val rows = context.contentResolver.delete(uri, null, null)
-            if (rows > 0) onDirectSuccess()
-        } catch (t: Throwable) { Log.e(TAG, "direct delete: ${t.message}") }
-    }
-}
-
-@Composable
-private fun TabChip(
-    label: String, icon: ImageVector, active: Boolean,
-    modifier: Modifier = Modifier, onClick: () -> Unit
-) {
-    Surface(
-        color = if (active) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
-                else Color(0x1100E5FF),
-        shape = RoundedCornerShape(20.dp),
-        border = if (active) BorderStroke(1.dp, MaterialTheme.colorScheme.primary) else null,
-        modifier = modifier.clickable { onClick() }
-    ) {
-        Row(
-            Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Center
-        ) {
-            Icon(icon, null,
-                tint = if (active) MaterialTheme.colorScheme.primary else Color(0xFF7A8FA6),
-                modifier = Modifier.size(12.dp))
-            Spacer(Modifier.width(4.dp))
-            Text(label,
-                color = if (active) MaterialTheme.colorScheme.primary else Color(0xFF7A8FA6),
-                fontSize = 9.sp, letterSpacing = 1.sp,
-                fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Medium)
-        }
-    }
-}
-
-@Composable
-private fun CenterMessage(text: String, hint: String? = null, showSpinner: Boolean = false) {
-    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            if (showSpinner) {
-                CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
-                Spacer(Modifier.height(14.dp))
-            } else {
-                Icon(Icons.Filled.MusicNote, null, tint = Color(0xFF3D5266),
-                    modifier = Modifier.size(56.dp))
-                Spacer(Modifier.height(12.dp))
-            }
-            Text(text, color = Color(0xFF7A8FA6),
-                fontSize = 12.sp, letterSpacing = 4.sp, fontFamily = FontFamily.Monospace)
-            if (hint != null) {
-                Spacer(Modifier.height(4.dp))
-                Text(hint, color = Color(0xFF3D5266), fontSize = 10.sp,
-                    fontFamily = FontFamily.Monospace)
-            }
-        }
-    }
-}
-
-@Composable
-private fun InfoChip(label: String, value: String) {
-    Column {
-        Text(label, color = Color(0xFF4A6272), fontSize = 9.sp,
-            letterSpacing = 2.sp, fontFamily = FontFamily.Monospace)
-        Text(value, color = MaterialTheme.colorScheme.primary, fontSize = 12.sp,
-            fontFamily = FontFamily.Monospace)
-    }
-}
-
-@OptIn(ExperimentalFoundationApi::class)
-@Composable
-private fun TrackRow(
-    t: Track, isCurrent: Boolean, isFavorite: Boolean,
-    onTap: () -> Unit, onLongPress: () -> Unit
-) {
-    val accent = if (isCurrent) MaterialTheme.colorScheme.primary else Color(0xFF7A8FA6)
-    Box(Modifier.background(Color(0xFF050810))) {
-        Row(
-            Modifier.fillMaxWidth()
-                .combinedClickable(onClick = onTap, onLongClick = onLongPress)
-                .padding(horizontal = 20.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Surface(
-                color = if (isCurrent) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
-                        else Color(0x1100E5FF),
-                shape = RoundedCornerShape(8.dp),
-                modifier = Modifier.size(40.dp)
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(Icons.Filled.MusicNote, null, tint = accent,
-                        modifier = Modifier.size(20.dp))
-                }
-            }
-            Spacer(Modifier.width(14.dp))
-            Column(Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(t.title,
-                        color = if (isCurrent) MaterialTheme.colorScheme.primary else Color.White,
-                        fontSize = 14.sp, fontWeight = FontWeight.Medium,
-                        fontFamily = FontFamily.Monospace, maxLines = 1,
-                        modifier = Modifier.weight(1f, fill = false))
-                    if (t.isVideo) {
-                        Spacer(Modifier.width(6.dp))
-                        Icon(Icons.Filled.VideoLibrary, "Video",
-                            tint = Color(0xFF7A8FA6),
-                            modifier = Modifier.size(12.dp))
-                    }
-                    if (t.isHiRes) {
-                        Spacer(Modifier.width(4.dp))
-                        Text("HR",
-                            color = Color(0xFFB4FF39),
-                            fontSize = 8.sp, letterSpacing = 1.sp,
-                            fontWeight = FontWeight.Bold,
-                            fontFamily = FontFamily.Monospace)
-                    }
-                    if (isFavorite) {
-                        Spacer(Modifier.width(6.dp))
-                        Icon(Icons.Filled.Favorite, null,
-                            tint = Color(0xFFFF4D7A),
-                            modifier = Modifier.size(12.dp))
-                    }
-                }
-                Spacer(Modifier.height(2.dp))
-                Text(
-                    if (t.isVideo) "${t.artist} · ${t.extension.uppercase()} · video audio track"
-                    else "${t.artist} · ${t.album}",
-                    color = Color(0xFF7A8FA6),
-                    fontSize = 11.sp, fontFamily = FontFamily.Monospace, maxLines = 1)
-            }
-            Spacer(Modifier.width(10.dp))
-            Column(horizontalAlignment = Alignment.End) {
-                Text(t.durationLabel, color = Color(0xFFB0C2D0),
-                    fontSize = 11.sp, fontFamily = FontFamily.Monospace)
-                Text(t.sizeLabel, color = Color(0xFF3D5266),
-                    fontSize = 9.sp, fontFamily = FontFamily.Monospace)
-            }
-        }
-        HorizontalDivider(color = Color(0x1100E5FF),
-            modifier = Modifier.align(Alignment.BottomStart).padding(start = 74.dp))
-    }
-}
-
-@Composable
-private fun MiniPlayerBar(
-    snapshot: com.skbsakib.audiosuperpower.player.PlayerSnapshot,
-    onPlayPause: () -> Unit,
-    onStop: () -> Unit,
-    onSeek: (Double) -> Unit,
-    onSwipeLeft: () -> Unit,
-    onSwipeRight: () -> Unit,
-    onSwipeUp: () -> Unit,
-    onTap: () -> Unit
-) {
-    var dragValue by remember { mutableStateOf<Float?>(null) }
-    val realProgress = if (snapshot.durationMs > 0)
-        (snapshot.positionMs.toFloat() / snapshot.durationMs.toFloat()).coerceIn(0f, 1f)
-    else 0f
-    val animated by animateFloatAsState(
-        targetValue = realProgress,
-        animationSpec = tween(250, easing = LinearEasing),
-        label = "seek"
-    )
-    val display = dragValue ?: animated
-
-    Surface(
-        color = Color(0xFF0E1826),
-        shadowElevation = 12.dp,
-        modifier = Modifier
-            .fillMaxWidth()
-            .pointerInput(Unit) {
-                detectHorizontalDragGestures { _, delta ->
-                    if (delta > 40f) onSwipeRight()
-                    else if (delta < -40f) onSwipeLeft()
-                }
-            }
-            .pointerInput(Unit) {
-                detectVerticalDragGestures { _, dy ->
-                    if (dy < -30f) onSwipeUp()
-                }
-            }
-            .clickable { onTap() }
-    ) {
-        Column(Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text(snapshot.title, color = Color.White,
-                        fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
-                        fontFamily = FontFamily.Monospace, maxLines = 1)
-                    Spacer(Modifier.height(2.dp))
-                    Text("${snapshot.artist} · ${snapshot.sourceInfo}",
-                        color = Color(0xFF7A8FA6), fontSize = 10.sp,
-                        fontFamily = FontFamily.Monospace, maxLines = 1)
-                }
-                IconButton(onClick = onPlayPause) {
-                    Icon(
-                        imageVector = if (snapshot.state == PlayerState.PLAYING)
-                            Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                        contentDescription = "Play/Pause",
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(28.dp)
-                    )
-                }
-                IconButton(onClick = onStop) {
-                    Icon(Icons.Filled.Stop, "Stop",
-                        tint = Color(0xFF7A8FA6), modifier = Modifier.size(22.dp))
-                }
-            }
-            Slider(
-                value = display,
-                onValueChange = { dragValue = it },
-                onValueChangeFinished = {
-                    dragValue?.let { onSeek(it.toDouble()) }
-                    dragValue = null
-                },
-                colors = SliderDefaults.colors(
-                    thumbColor = MaterialTheme.colorScheme.primary,
-                    activeTrackColor = MaterialTheme.colorScheme.primary,
-                    inactiveTrackColor = Color(0x2200E5FF)
-                ),
-                modifier = Modifier.fillMaxWidth().height(28.dp)
-            )
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text(formatMs(if (dragValue != null)
-                        (dragValue!! * snapshot.durationMs).toLong() else snapshot.positionMs),
-                    color = Color(0xFF7A8FA6), fontSize = 9.sp, fontFamily = FontFamily.Monospace)
-                Text(snapshot.deviceInfo, color = Color(0xFF3D5266),
-                    fontSize = 9.sp, fontFamily = FontFamily.Monospace)
-                Text(formatMs(snapshot.durationMs), color = Color(0xFF7A8FA6),
-                    fontSize = 9.sp, fontFamily = FontFamily.Monospace)
-            }
-        }
-    }
-}
-
-private fun formatMs(ms: Long): String {
-    val s = ms / 1000
-    return "%d:%02d".format(s / 60, s % 60)
-}
-
-@Composable
-private fun MiniStat(label: String, value: String) {
-    Column {
-        Text(label, color = Color(0xFF4A6272), fontSize = 8.sp,
-            letterSpacing = 2.sp, fontFamily = FontFamily.Monospace)
-        Text(value, color = MaterialTheme.colorScheme.primary, fontSize = 12.sp,
-            fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Medium)
     }
 }
