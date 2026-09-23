@@ -6,6 +6,7 @@ import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.*
@@ -20,6 +21,7 @@ import com.skbsakib.audiosuperpower.device.DeviceProfileController
 import com.skbsakib.audiosuperpower.settings.SettingsStore
 import com.skbsakib.audiosuperpower.settings.SkbSettings
 import com.skbsakib.audiosuperpower.ui.nav.Routes
+import com.skbsakib.audiosuperpower.ui.overlay.PlayerOverlay
 import com.skbsakib.audiosuperpower.ui.nav.SkbNavHost
 import com.skbsakib.audiosuperpower.ui.theme.AccentPalette
 import com.skbsakib.audiosuperpower.ui.theme.SkbTheme
@@ -48,19 +50,24 @@ class MainActivity : ComponentActivity() {
                     val nav = rememberNavController()
                     val start = if (hasAudioPerm.value) Routes.HOME else Routes.PERMISSIONS
 
-                    SkbNavHost(
-                        nav = nav,
-                        startDestination = start,
-                        settings = settings,
-                        onGrantPermissions = {
-                            hasAudioPerm.value = true
-                            nav.navigate(Routes.HOME) {
-                                popUpTo(Routes.PERMISSIONS) { inclusive = true }
-                            }
-                        },
-                        onAccentChange = { scope.launch { store.setAccent(it) } },
-                        onHapticsChange = { scope.launch { store.setHaptics(it) } }
-                    )
+                    Box(Modifier.fillMaxSize()) {
+                        SkbNavHost(
+                            nav = nav,
+                            startDestination = start,
+                            settings = settings,
+                            onGrantPermissions = {
+                                hasAudioPerm.value = true
+                                nav.navigate(Routes.HOME) {
+                                    popUpTo(Routes.PERMISSIONS) { inclusive = true }
+                                }
+                            },
+                            onAccentChange = { scope.launch { store.setAccent(it) } },
+                            onHapticsChange = { scope.launch { store.setHaptics(it) } }
+                        )
+
+                        // Full-player overlay (animation from bottom, back-gesture closes)
+                        PlayerOverlay()
+                    }
                 }
             }
         }
