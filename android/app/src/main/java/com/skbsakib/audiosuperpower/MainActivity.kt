@@ -13,6 +13,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -128,8 +129,7 @@ class MainActivity : ComponentActivity() {
                         visible = showIntro,
                         enter = fadeIn(animationSpec = tween(200)),
                         exit = fadeOut(animationSpec = tween(340)) +
-                               scaleIn(
-                                   initialScale = 1.0f,
+                               scaleOut(
                                    targetScale = 1.08f,
                                    animationSpec = tween(340, easing = LinearEasing)
                                )

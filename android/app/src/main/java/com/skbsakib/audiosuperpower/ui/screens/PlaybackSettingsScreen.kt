@@ -34,6 +34,8 @@ import com.skbsakib.audiosuperpower.playback.SmartQueueMode
 fun PlaybackSettingsScreen(onClose: () -> Unit) {
     val ctx = LocalContext.current
     val crossfadeMs by CrossfadeController.ms.collectAsStateWithLifecycle()
+    val rgState by ReplayGainController.state.collectAsStateWithLifecycle()
+    val sqState by SmartQueueController.state.collectAsStateWithLifecycle()
     val sleepRemaining by SleepTimer.remainingMs.collectAsStateWithLifecycle()
     val sleepActive by SleepTimer.active.collectAsStateWithLifecycle()
 

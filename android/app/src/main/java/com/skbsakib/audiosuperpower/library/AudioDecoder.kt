@@ -99,7 +99,7 @@ object AudioDecoder {
         }
         val idx = bestIdx
         if (idx < 0) {
-            Log.e(TAG, "no audio track in $sourcePath")
+            Log.e(TAG, "no audio track in $path")
             runCatching { extractor.release() }
             return null
         }
