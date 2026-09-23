@@ -20,7 +20,6 @@ AudioPlayer::~AudioPlayer() {
 bool AudioPlayer::loadWav(const std::string& path, std::string& error) {
     std::lock_guard<std::mutex> lock(streamMutex_);
 
-    // Stop any current playback
     if (stream_) {
         stream_->requestStop();
         stream_->close();
@@ -41,6 +40,8 @@ bool AudioPlayer::loadWav(const std::string& path, std::string& error) {
     totalFrames_    = static_cast<int64_t>(wav.frameCount);
     positionFrames_.store(0, std::memory_order_release);
     resamplePhase_  = 0.0;
+    eq_.reset();
+    limiter_.reset();
 
     LOGI("Loaded: %d Hz, %d ch, %d bits, %lld frames",
          srcSampleRate_, srcChannels_, srcBits_,
@@ -69,16 +70,16 @@ bool AudioPlayer::openStream(std::string& error) {
     deviceSampleRate_.store(stream_->getSampleRate(), std::memory_order_release);
     deviceChannels_.store(stream_->getChannelCount(), std::memory_order_release);
 
-    // Scratch buffer sized for a generous callback
     scratch_.assign(static_cast<size_t>(stream_->getChannelCount()) *
-                    static_cast<size_t>(stream_->getFramesPerBurst() * 8),
-                    0.0f);
+                    static_cast<size_t>(stream_->getFramesPerBurst() * 8), 0.0f);
 
-    LOGI("Oboe stream opened: device %d Hz, %d ch, bufferFrames=%d, burst=%d",
-         stream_->getSampleRate(),
-         stream_->getChannelCount(),
-         stream_->getBufferSizeInFrames(),
-         stream_->getFramesPerBurst());
+    // Configure DSP for the device sample rate
+    eq_.setSampleRate(static_cast<float>(stream_->getSampleRate()));
+    limiter_.setSampleRate(static_cast<float>(stream_->getSampleRate()));
+
+    LOGI("Oboe stream opened: device %d Hz, %d ch, bufferFrames=%d",
+         stream_->getSampleRate(), stream_->getChannelCount(),
+         stream_->getBufferSizeInFrames());
     return true;
 }
 
@@ -92,16 +93,11 @@ void AudioPlayer::closeStream() {
 }
 
 bool AudioPlayer::play(std::string& error) {
-    if (samples_.empty()) {
-        error = "no track loaded";
-        return false;
-    }
+    if (samples_.empty()) { error = "no track loaded"; return false; }
 
     std::lock_guard<std::mutex> lock(streamMutex_);
 
-    if (!stream_) {
-        if (!openStream(error)) return false;
-    }
+    if (!stream_) { if (!openStream(error)) return false; }
 
     if (state_.load(std::memory_order_acquire) == PlaybackState::Completed) {
         positionFrames_.store(0, std::memory_order_release);
@@ -114,7 +110,6 @@ bool AudioPlayer::play(std::string& error) {
         error += oboe::convertToText(r);
         return false;
     }
-
     state_.store(PlaybackState::Playing, std::memory_order_release);
     return true;
 }
@@ -129,11 +124,11 @@ void AudioPlayer::pause() {
 
 void AudioPlayer::stop() {
     std::lock_guard<std::mutex> lock(streamMutex_);
-    if (stream_) {
-        stream_->requestStop();
-    }
+    if (stream_) stream_->requestStop();
     positionFrames_.store(0, std::memory_order_release);
     resamplePhase_ = 0.0;
+    eq_.reset();
+    limiter_.reset();
     state_.store(PlaybackState::Idle, std::memory_order_release);
 }
 
@@ -149,8 +144,7 @@ void AudioPlayer::seekToFraction(double fraction) {
 
 int64_t AudioPlayer::positionMs() const {
     if (srcSampleRate_ <= 0) return 0;
-    int64_t frames = positionFrames_.load(std::memory_order_acquire);
-    return (frames * 1000) / srcSampleRate_;
+    return (positionFrames_.load(std::memory_order_acquire) * 1000) / srcSampleRate_;
 }
 
 int64_t AudioPlayer::durationMs() const {
@@ -158,6 +152,29 @@ int64_t AudioPlayer::durationMs() const {
     return (totalFrames_ * 1000) / srcSampleRate_;
 }
 
+// ─────────────────────────────────────────────────────
+//  DSP control
+// ─────────────────────────────────────────────────────
+void AudioPlayer::setDspEnabled(bool e) {
+    dspEnabled_.store(e, std::memory_order_release);
+}
+
+void AudioPlayer::setPreampDb(float db)   { eq_.setPreampDb(db); }
+void AudioPlayer::setEqBand(int idx, float db) { eq_.setBandGain(idx, db); }
+void AudioPlayer::setBassDb(float db)     { eq_.setBassDb(db); }
+void AudioPlayer::setTrebleDb(float db)   { eq_.setTrebleDb(db); }
+
+void AudioPlayer::setLimiterEnabled(bool e)      { limiter_.setEnabled(e); }
+void AudioPlayer::setLimiterCeilingDb(float db)  { limiter_.setCeilingDb(db); }
+
+void AudioPlayer::resetDsp() {
+    eq_.reset();
+    limiter_.reset();
+}
+
+// ─────────────────────────────────────────────────────
+//  Realtime callback
+// ─────────────────────────────────────────────────────
 oboe::DataCallbackResult AudioPlayer::onAudioReady(
         oboe::AudioStream* stream, void* audioData, int32_t numFrames) {
 
@@ -175,10 +192,10 @@ oboe::DataCallbackResult AudioPlayer::onAudioReady(
 
     int64_t pos = positionFrames_.load(std::memory_order_relaxed);
     const double rateRatio = static_cast<double>(srcRate) / static_cast<double>(outRate);
+    const bool useDsp = dspEnabled_.load(std::memory_order_relaxed);
 
     for (int32_t i = 0; i < numFrames; ++i) {
         if (pos >= totalFrames_) {
-            // Fill remaining with silence and mark complete
             for (int32_t j = i; j < numFrames; ++j) {
                 for (int32_t c = 0; c < outChannels; ++c) {
                     out[j * outChannels + c] = 0.0f;
@@ -188,17 +205,20 @@ oboe::DataCallbackResult AudioPlayer::onAudioReady(
             return oboe::DataCallbackResult::Continue;
         }
 
-        // Read source frame (interleaved)
         const float* frameIn = samples_.data() + pos * srcCh;
 
-        // Stereo out (or however many out channels)
         for (int32_t c = 0; c < outChannels; ++c) {
-            int32_t srcIdx = (c < srcCh) ? c : 0;   // fallback: duplicate first
-            out[i * outChannels + c] = frameIn[srcIdx];
+            int32_t srcIdx = (c < srcCh) ? c : 0;
+            float s = frameIn[srcIdx];
+
+            if (useDsp) {
+                s = eq_.process(s, c < 2 ? c : 0);
+                s = limiter_.process(s);
+            }
+
+            out[i * outChannels + c] = s;
         }
 
-        // Advance source position with linear resampling if rates differ.
-        // Phase 5 replaces this with r8brain (high quality SRC).
         if (srcRate == outRate) {
             ++pos;
         } else {
@@ -217,7 +237,7 @@ oboe::DataCallbackResult AudioPlayer::onAudioReady(
 bool AudioPlayer::onError(oboe::AudioStream*, oboe::Result error) {
     LOGE("Oboe stream error: %s", oboe::convertToText(error));
     state_.store(PlaybackState::Error, std::memory_order_release);
-    return false;   // don't retry automatically
+    return false;
 }
 
 } // namespace skb

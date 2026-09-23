@@ -33,6 +33,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.Equalizer
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.LibraryMusic
@@ -80,7 +81,8 @@ enum class LibraryTab { SYSTEM, FOLDERS, FAVORITES, RECENT }
 fun LibraryScreen(
     settings: SkbSettings,
     onOpenSettings: () -> Unit,
-    onOpenPlayer: () -> Unit
+    onOpenPlayer: () -> Unit,
+    onOpenDspLab: () -> Unit
 ) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -268,6 +270,10 @@ fun LibraryScreen(
                     fontWeight = FontWeight.Bold, letterSpacing = 3.sp,
                     fontFamily = FontFamily.Monospace)
             }
+            Icon(Icons.Filled.Equalizer, "DSP Lab",
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(24.dp).clickable { onOpenDspLab() })
+            Spacer(Modifier.width(18.dp))
             Icon(Icons.Filled.Settings, "Settings",
                 tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.size(24.dp).clickable { onOpenSettings() })
