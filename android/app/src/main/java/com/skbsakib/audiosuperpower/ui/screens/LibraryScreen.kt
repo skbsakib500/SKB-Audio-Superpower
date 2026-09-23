@@ -1,10 +1,11 @@
 package com.skbsakib.audiosuperpower.ui.screens
 
-import androidx.compose.foundation.ExperimentalFoundationApi
 import android.app.Activity
 import android.content.ContentUris
 import android.content.Context
+import android.content.Intent
 import android.content.IntentSender
+import android.net.Uri
 import android.os.Build
 import android.provider.MediaStore
 import android.util.Log
@@ -14,6 +15,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -26,9 +29,11 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.MusicNote
@@ -52,29 +57,23 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.skbsakib.audiosuperpower.library.Favorites
+import com.skbsakib.audiosuperpower.library.FolderStore
 import com.skbsakib.audiosuperpower.library.MediaStoreScanner
 import com.skbsakib.audiosuperpower.library.Recent
+import com.skbsakib.audiosuperpower.library.SafScanner
 import com.skbsakib.audiosuperpower.library.Track
 import com.skbsakib.audiosuperpower.playback.PlaybackService
 import com.skbsakib.audiosuperpower.player.NativePlayer
 import com.skbsakib.audiosuperpower.player.PlayerState
 import com.skbsakib.audiosuperpower.settings.SkbSettings
 import com.skbsakib.audiosuperpower.ui.components.TrackContextSheet
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import android.content.Intent
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import com.skbsakib.audiosuperpower.library.FolderStore
-import com.skbsakib.audiosuperpower.library.SafScanner
-import com.skbsakib.audiosuperpower.library.PlaybackState
+import kotlinx.coroutines.withContext
 
 private const val TAG = "SKB-Library"
 
-enum class LibraryTab { ALL, FAVORITES, RECENT }
+enum class LibraryTab { SYSTEM, FOLDERS, FAVORITES, RECENT }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -83,126 +82,91 @@ fun LibraryScreen(
     onOpenSettings: () -> Unit,
     onOpenPlayer: () -> Unit
 ) {
-    // SKB_FOLDER_STATE_MARKER
-    val skbCtx = androidx.compose.ui.platform.LocalContext.current
-    val skbFolderStore = remember { FolderStore(skbCtx.applicationContext) }
-    val skbScope = rememberCoroutineScope()
-    val skbFolderUrisState = skbFolderStore.folders.collectAsState(initial = emptySet<String>())
-    val skbFolderUris = skbFolderUrisState.value
-    val skbPickerShown = remember { mutableStateOf(false) }
-    val skbFolderPicker = rememberLauncherForActivityResult(
-        ActivityResultContracts.OpenDocumentTree()
-    ) { uri ->
-        uri?.let {
-            runCatching {
-                skbCtx.contentResolver.takePersistableUriPermission(
-                    it, Intent.FLAG_GRANT_READ_URI_PERMISSION
-                )
-            }
-            skbScope.launch { skbFolderStore.add(it.toString()) }
-        }
-    }
-    LaunchedEffect(Unit) {
-        if (!skbPickerShown.value && skbFolderUris.isEmpty()) {
-            skbPickerShown.value = true
-            skbFolderPicker.launch(null)
-        }
-    }
     val ctx = LocalContext.current
-    var allTracks by remember { mutableStateOf<List<Track>>(emptyList()) }
-    var loading by remember { mutableStateOf(true) }
-    var tab by rememberSaveable { mutableStateOf(LibraryTab.ALL) }
+    val scope = rememberCoroutineScope()
+
+    // ── Base lists ──
+    var systemTracks by remember { mutableStateOf<List<Track>>(emptyList()) }
+    var folderTracks by remember { mutableStateOf<List<Track>>(emptyList()) }
+    var scanning by remember { mutableStateOf(true) }
+    var tab by rememberSaveable { mutableStateOf(LibraryTab.SYSTEM) }
+
+    // ── Selection / UI state ──
     var pendingDelete by remember { mutableStateOf<Track?>(null) }
     var contextTrack by remember { mutableStateOf<Track?>(null) }
+
     val snapshot by NativePlayer.snapshot.collectAsStateWithLifecycle()
-    val scope = rememberCoroutineScope()
 
     NativePlayer.attach(ctx.applicationContext)
 
-    // Favorites + Recent flows
+    // ── Stores ──
+    val folderStore = remember { FolderStore(ctx.applicationContext) }
+    val folderUris by folderStore.folders.collectAsStateWithLifecycle(initialValue = emptySet())
     val favKeys by remember { Favorites.keys(ctx) }.collectAsStateWithLifecycle(initialValue = emptySet())
     val recentTracks by remember { Recent.flow(ctx) }.collectAsStateWithLifecycle(initialValue = emptyList())
 
     val listState: LazyListState = rememberSaveable(saver = LazyListState.Saver) { LazyListState() }
 
+    // ── SAF folder picker ──
+    val folderPicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocumentTree()
+    ) { uri ->
+        if (uri != null) {
+            try {
+                ctx.contentResolver.takePersistableUriPermission(
+                    uri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
+            } catch (t: Throwable) {
+                Log.w(TAG, "persist permission failed: ${t.message}")
+            }
+            scope.launch { folderStore.add(uri.toString()) }
+        }
+    }
+
+    // ── Initial scans ──
+    LaunchedEffect(Unit) {
+        scanning = true
+        systemTracks = withContext(Dispatchers.IO) {
+            runCatching { MediaStoreScanner.scan(ctx.applicationContext) }.getOrElse { emptyList() }
+        }
+        scanning = false
+    }
+
+    LaunchedEffect(folderUris) {
+        if (folderUris.isEmpty()) { folderTracks = emptyList(); return@LaunchedEffect }
+        scanning = true
+        folderTracks = withContext(Dispatchers.IO) {
+            runCatching { SafScanner.scan(ctx.applicationContext, folderUris) }.getOrElse { emptyList() }
+        }
+        scanning = false
+    }
+
+    // ── Feed active tab's list into player for next/prev ──
     val displayed: List<Track> = when (tab) {
-        LibraryTab.ALL -> allTracks
-        LibraryTab.FAVORITES -> allTracks.filter { Favorites.keyOf(it) in favKeys }
+        LibraryTab.SYSTEM -> systemTracks
+        LibraryTab.FOLDERS -> folderTracks
+        LibraryTab.FAVORITES -> systemTracks.filter { Favorites.keyOf(it) in favKeys }
         LibraryTab.RECENT -> recentTracks
     }
-
-    // Scan device on first open
-    LaunchedEffect(Unit) {
-        loading = true
-        allTracks = SafScanner.scan(skbCtx, skbFolderUris)
-        loading = false
+    LaunchedEffect(displayed) {
+        NativePlayer.setLibrary(displayed, -1)
     }
 
-    // Push library list into NativePlayer so next/prev walks it
-    LaunchedEffect(allTracks) {
-        NativePlayer.setLibrary(allTracks, -1)
-    }
-
-    // SKB_PART2_BRIDGE — publish now-playing to shared state
-    LaunchedEffect(snapshot.title, snapshot.artist) {
-        if (snapshot.title.isNotBlank()) {
-            val i = allTracks.indexOfFirst {
-                it.title == snapshot.title && it.artist == snapshot.artist
-            }
-            if (i >= 0) {
-                PlaybackState.setNowPlaying(
-                    allTracks[i].id, allTracks[i].path,
-                    snapshot.state == PlayerState.PLAYING
-                )
-            }
-        } else {
-            PlaybackState.clear()
-        }
-    }
-
-    // SKB_PART2_AUTOSCROLL — scroll to now-playing row
-    LaunchedEffect(snapshot.title, snapshot.artist, displayed.size) {
-        if (snapshot.title.isNotBlank() && displayed.isNotEmpty()) {
-            val i = displayed.indexOfFirst {
-                it.title == snapshot.title && it.artist == snapshot.artist
-            }
-            if (i >= 0) {
-                kotlinx.coroutines.delay(200L)
-                listState.animateScrollToItem(i)
-            }
-        }
-    }
-
-    // SKB_PART2_RESCAN — with try/finally + error safety
-    LaunchedEffect(skbFolderUris) {
-        if (skbFolderUris.isNotEmpty()) {
-            loading = true
-            try {
-                allTracks = SafScanner.scan(skbCtx, skbFolderUris)
-            } catch (e: Throwable) {
-                android.util.Log.e("SKB-Library", "scan failed: ${e.message}", e)
-                allTracks = emptyList()
-            } finally {
-                loading = false
-            }
-        } else {
-            loading = false
-        }
-    }
-
-    // Delete intent launcher (Android 11+)
+    // ── Delete intent launcher ──
     val deleteLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartIntentSenderForResult()
     ) { result ->
         val t = pendingDelete
         if (result.resultCode == Activity.RESULT_OK && t != null) {
-            allTracks = allTracks.filterNot { it.id == t.id }
+            systemTracks = systemTracks.filterNot { it.id == t.id }
+            folderTracks = folderTracks.filterNot { it.id == t.id }
             if (snapshot.title == t.title && snapshot.artist == t.artist) NativePlayer.stop()
         }
         pendingDelete = null
     }
 
-    // Delete confirm dialog
+    // ── Delete confirm dialog ──
     if (pendingDelete != null) {
         val t = pendingDelete!!
         AlertDialog(
@@ -220,7 +184,7 @@ fun LibraryScreen(
                     Text(t.artist, color = Color(0xFF7A8FA6), fontSize = 11.sp,
                         fontFamily = FontFamily.Monospace)
                     Spacer(Modifier.height(12.dp))
-                    Text("This permanently removes the file from your device.",
+                    Text("This permanently removes the file.",
                         color = Color(0xFFFF8A8A), fontSize = 11.sp,
                         fontFamily = FontFamily.Monospace, lineHeight = 16.sp)
                 }
@@ -235,7 +199,8 @@ fun LibraryScreen(
                                 deleteLauncher.launch(IntentSenderRequest.Builder(sender).build())
                             },
                             onDirectSuccess = {
-                                allTracks = allTracks.filterNot { it.id == target.id }
+                                systemTracks = systemTracks.filterNot { it.id == target.id }
+                                folderTracks = folderTracks.filterNot { it.id == target.id }
                                 if (snapshot.title == target.title) NativePlayer.stop()
                             })
                     }
@@ -253,7 +218,7 @@ fun LibraryScreen(
         )
     }
 
-    // Context bottom sheet
+    // ── Context sheet ──
     contextTrack?.let { t ->
         val isFav = Favorites.keyOf(t) in favKeys
         TrackContextSheet(
@@ -261,25 +226,19 @@ fun LibraryScreen(
             isFavorite = isFav,
             onDismiss = { contextTrack = null },
             onPlayNow = {
-                val idx = allTracks.indexOfFirst { it.id == t.id }
+                val idx = displayed.indexOfFirst { it.id == t.id }
+                NativePlayer.setLibrary(displayed, idx)
                 NativePlayer.load(ctx.applicationContext, t, autoplay = true, libraryIndex = idx)
                 PlaybackService.start(ctx.applicationContext)
                 contextTrack = null
             },
-            onPlayNext = {
-                NativePlayer.enqueueNext(t); contextTrack = null
-            },
-            onAddToQueue = {
-                NativePlayer.enqueue(t); contextTrack = null
-            },
+            onPlayNext = { NativePlayer.enqueueNext(t); contextTrack = null },
+            onAddToQueue = { NativePlayer.enqueue(t); contextTrack = null },
             onToggleFavorite = {
                 scope.launch { Favorites.toggle(ctx, Favorites.keyOf(t)) }
                 contextTrack = null
             },
-            onDelete = {
-                pendingDelete = t
-                contextTrack = null
-            },
+            onDelete = { pendingDelete = t; contextTrack = null },
             onInfo = {
                 Log.i(TAG, "info: ${t.path} (${t.sizeLabel}, ${t.durationLabel})")
                 contextTrack = null
@@ -287,6 +246,9 @@ fun LibraryScreen(
         )
     }
 
+    // ═══════════════════════════════════════════════════════
+    //  Layout
+    // ═══════════════════════════════════════════════════════
     Column(
         Modifier.fillMaxSize()
             .background(Brush.verticalGradient(listOf(Color(0xFF050810), Color(0xFF0A1220))))
@@ -313,46 +275,106 @@ fun LibraryScreen(
 
         HorizontalDivider(color = Color(0x2200E5FF))
 
-        // Tab row
+        // Tabs
         Row(
             Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            TabChip("ALL", Icons.Filled.LibraryMusic, tab == LibraryTab.ALL) { tab = LibraryTab.ALL }
-            TabChip("FAVORITES", Icons.Filled.Favorite, tab == LibraryTab.FAVORITES) { tab = LibraryTab.FAVORITES }
-            TabChip("RECENT", Icons.Filled.History, tab == LibraryTab.RECENT) { tab = LibraryTab.RECENT }
+            TabChip("SYSTEM", Icons.Filled.LibraryMusic, tab == LibraryTab.SYSTEM, Modifier.weight(1f)) { tab = LibraryTab.SYSTEM }
+            TabChip("FOLDERS", Icons.Filled.Folder, tab == LibraryTab.FOLDERS, Modifier.weight(1f)) { tab = LibraryTab.FOLDERS }
+            TabChip("FAVS", Icons.Filled.Favorite, tab == LibraryTab.FAVORITES, Modifier.weight(1f)) { tab = LibraryTab.FAVORITES }
+            TabChip("RECENT", Icons.Filled.History, tab == LibraryTab.RECENT, Modifier.weight(1f)) { tab = LibraryTab.RECENT }
         }
 
-        // Status strip
+        // Status strip + actions
         Surface(color = Color(0x1100E5FF)) {
             Row(
                 Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 10.dp),
-                horizontalArrangement = Arrangement.spacedBy(20.dp)
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(18.dp)
             ) {
                 InfoChip("TRACKS", displayed.size.toString())
                 InfoChip("QUEUE", snapshot.queueSize.toString())
                 InfoChip("PLAYER", snapshot.state.name)
+                Spacer(Modifier.weight(1f))
+                if (tab == LibraryTab.FOLDERS) {
+                    Row(
+                        Modifier
+                            .clickable { folderPicker.launch(null) }
+                            .padding(horizontal = 8.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Filled.Add, "Add folder",
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(14.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text("ADD FOLDER",
+                            color = MaterialTheme.colorScheme.primary,
+                            fontSize = 10.sp, letterSpacing = 2.sp,
+                            fontFamily = FontFamily.Monospace)
+                    }
+                }
+            }
+        }
+
+        // Folder chips (only FOLDERS tab)
+        if (tab == LibraryTab.FOLDERS && folderUris.isNotEmpty()) {
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                folderUris.take(3).forEach { u ->
+                    val label = Uri.decode(u).substringAfterLast(':').substringAfterLast('/')
+                        .ifBlank { "folder" }
+                    Surface(
+                        color = Color(0x1A00E5FF),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.clickable {
+                            scope.launch { folderStore.remove(u) }
+                        }
+                    ) {
+                        Row(
+                            Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(label.take(18),
+                                color = MaterialTheme.colorScheme.primary,
+                                fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+                            Spacer(Modifier.width(6.dp))
+                            Text("×", color = Color(0xFFFF4D4D),
+                                fontSize = 12.sp, fontFamily = FontFamily.Monospace)
+                        }
+                    }
+                }
             }
         }
 
         // List
         Box(Modifier.weight(1f)) {
             when {
-                loading -> CenterMessage("SCANNING DEVICE…", showSpinner = true)
+                scanning && displayed.isEmpty() -> CenterMessage("SCANNING…", showSpinner = true)
+
+                tab == LibraryTab.FOLDERS && folderUris.isEmpty() ->
+                    CenterMessage("NO FOLDERS ADDED",
+                        hint = "tap ADD FOLDER above to pick a folder")
+
                 displayed.isEmpty() -> CenterMessage(
                     when (tab) {
-                        LibraryTab.ALL -> "NO AUDIO FILES"
+                        LibraryTab.SYSTEM -> "NO AUDIO FILES"
+                        LibraryTab.FOLDERS -> "NO AUDIO IN FOLDERS"
                         LibraryTab.FAVORITES -> "NO FAVORITES YET"
                         LibraryTab.RECENT -> "NOTHING PLAYED YET"
                     },
                     hint = when (tab) {
-                        LibraryTab.ALL -> "copy music to /sdcard/Music"
+                        LibraryTab.SYSTEM -> "copy music to /sdcard/Music"
+                        LibraryTab.FOLDERS -> "add a folder with music"
                         LibraryTab.FAVORITES -> "tap ♥ in the full player"
                         LibraryTab.RECENT -> "play something to see it here"
                     }
                 )
+
                 else -> LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
-                    items(displayed, key = { it.id.toString() + it.path }) { t ->
+                    items(displayed, key = { "${it.id}-${it.path}" }) { t ->
                         val dismissState = rememberSwipeToDismissBoxState(
                             confirmValueChange = { value ->
                                 if (value == SwipeToDismissBoxValue.EndToStart ||
@@ -380,10 +402,11 @@ fun LibraryScreen(
                         ) {
                             TrackRow(
                                 t = t,
-                                isCurrent = snapshot.title == t.title && snapshot.artist == t.artist,
+                                isCurrent = snapshot.title == t.title &&
+                                            snapshot.artist == t.artist,
                                 isFavorite = Favorites.keyOf(t) in favKeys,
                                 onTap = {
-                                    val idx = displayed.indexOfFirst { it.id == t.id }
+                                    val idx = displayed.indexOfFirst { it.path == t.path }
                                     NativePlayer.setLibrary(displayed, idx)
                                     NativePlayer.load(ctx.applicationContext, t,
                                         autoplay = true, libraryIndex = idx)
@@ -398,13 +421,13 @@ fun LibraryScreen(
             }
         }
 
-        // Mini player with gestures
+        // Mini player
         if (snapshot.state != PlayerState.IDLE && snapshot.title.isNotBlank()) {
             MiniPlayerBar(
                 snapshot = snapshot,
                 onPlayPause = {
                     NativePlayer.togglePlayPause()
-                    val i = android.content.Intent(ctx, PlaybackService::class.java)
+                    val i = Intent(ctx, PlaybackService::class.java)
                     i.action = if (snapshot.state == PlayerState.PLAYING)
                         PlaybackService.ACTION_PAUSE else PlaybackService.ACTION_PLAY
                     ctx.startService(i)
@@ -423,47 +446,60 @@ fun LibraryScreen(
     }
 }
 
+// ═══════════════════════════════════════════════════════
+//  Helpers
+// ═══════════════════════════════════════════════════════
+
 private fun performDelete(
     context: Context, track: Track,
     onRequest: (IntentSender) -> Unit,
     onDirectSuccess: () -> Unit
 ) {
+    val isContent = track.path.startsWith("content://", ignoreCase = true)
+    if (isContent) {
+        // SAF — files we don't own can't be deleted via MediaStore. Skip.
+        Log.w(TAG, "cannot delete SAF track without DocumentsContract delete; skipping")
+        return
+    }
     val uri = ContentUris.withAppendedId(
         MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, track.id)
     if (Build.VERSION.SDK_INT >= 30) {
         try {
             val pi = MediaStore.createDeleteRequest(context.contentResolver, listOf(uri))
             onRequest(pi.intentSender)
-        } catch (t: Throwable) { Log.e(TAG, "createDeleteRequest failed: ${t.message}") }
+        } catch (t: Throwable) { Log.e(TAG, "createDeleteRequest: ${t.message}") }
     } else {
         try {
             val rows = context.contentResolver.delete(uri, null, null)
             if (rows > 0) onDirectSuccess()
-        } catch (t: Throwable) { Log.e(TAG, "direct delete failed: ${t.message}") }
+        } catch (t: Throwable) { Log.e(TAG, "direct delete: ${t.message}") }
     }
 }
 
 @Composable
-private fun TabChip(label: String, icon: ImageVector, active: Boolean, onClick: () -> Unit) {
+private fun TabChip(
+    label: String, icon: ImageVector, active: Boolean,
+    modifier: Modifier = Modifier, onClick: () -> Unit
+) {
     Surface(
         color = if (active) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
                 else Color(0x1100E5FF),
         shape = RoundedCornerShape(20.dp),
-        border = if (active) androidx.compose.foundation.BorderStroke(
-            1.dp, MaterialTheme.colorScheme.primary) else null,
-        modifier = Modifier.clickable { onClick() }
+        border = if (active) BorderStroke(1.dp, MaterialTheme.colorScheme.primary) else null,
+        modifier = modifier.clickable { onClick() }
     ) {
         Row(
-            Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically
+            Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
         ) {
             Icon(icon, null,
                 tint = if (active) MaterialTheme.colorScheme.primary else Color(0xFF7A8FA6),
-                modifier = Modifier.size(14.dp))
-            Spacer(Modifier.width(6.dp))
+                modifier = Modifier.size(12.dp))
+            Spacer(Modifier.width(4.dp))
             Text(label,
                 color = if (active) MaterialTheme.colorScheme.primary else Color(0xFF7A8FA6),
-                fontSize = 10.sp, letterSpacing = 2.sp,
+                fontSize = 9.sp, letterSpacing = 1.sp,
                 fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Medium)
         }
     }
@@ -587,9 +623,7 @@ private fun MiniPlayerBar(
         modifier = Modifier
             .fillMaxWidth()
             .pointerInput(Unit) {
-                detectHorizontalDragGestures(
-                    onDragEnd = { /* committed via velocity? simple: use small threshold */ }
-                ) { _, delta ->
+                detectHorizontalDragGestures { _, delta ->
                     if (delta > 40f) onSwipeRight()
                     else if (delta < -40f) onSwipeLeft()
                 }

@@ -4,21 +4,23 @@ import android.content.Context
 import android.media.MediaCodec
 import android.media.MediaExtractor
 import android.media.MediaFormat
+import android.net.Uri
 import android.util.Log
 import java.io.File
 import java.io.RandomAccessFile
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.security.MessageDigest
 
 /**
- * Decodes any Android-supported audio file (MP3, AAC, M4A, FLAC, OGG, OPUS, WAV)
- * to a temporary 16-bit PCM WAV file in app cache.
+ * Decodes any Android-supported audio file to a temporary 16-bit PCM WAV in
+ * app cache, which the native WavReader then loads via std::ifstream.
  *
- * The native AudioPlayer then loads that WAV via WavReader. One-shot decode
- * on load; playback is instantaneous after.
+ * Accepts BOTH:
+ *   - filesystem paths   (from MediaStore: /storage/emulated/0/Music/...)
+ *   - content:// URIs    (from SAF: content://com.android.externalstorage.documents/...)
  *
- * Phase 4 replaces this with a streaming ring buffer fed by MediaCodec
- * directly into the native engine — real-time, zero cache WAV.
+ * Cache key = SHA-1(uriString + sizeBytes). Unchanged source → instant reuse.
  */
 object AudioDecoder {
 
@@ -27,24 +29,57 @@ object AudioDecoder {
 
     data class Result(val wavPath: String, val sampleRate: Int, val channels: Int)
 
-    /** Returns a WAV path (original if already WAV, else a decoded cache copy) or null. */
-    fun decodeToCache(context: Context, sourcePath: String): Result? {
-        val source = File(sourcePath)
-        if (!source.exists()) { Log.e(TAG, "not found: $sourcePath"); return null }
+    /**
+     * Fast-path: raw WAV file (filesystem) — no decode needed, native can read it.
+     * Content URIs and all compressed formats go through the decode pipeline.
+     */
+    fun decodeToCache(context: Context, track: Track): Result? {
+        val path = track.path
+        val isContent = path.startsWith("content://", ignoreCase = true)
 
-        if (sourcePath.endsWith(".wav", ignoreCase = true)) {
-            return Result(sourcePath, 0, 0)
+        if (!isContent && path.endsWith(".wav", ignoreCase = true)) {
+            val f = File(path)
+            if (f.exists()) return Result(path, 0, 0)
         }
 
-        // Extract audio track format
+        val cacheKey = sha1("$path|${track.sizeBytes}")
+        val cacheDir = File(context.cacheDir, "decoded").apply { mkdirs() }
+        val cached = File(cacheDir, "skb_$cacheKey.wav")
+
+        if (cached.exists() && cached.length() > 44) {
+            Log.i(TAG, "cache hit: ${cached.name} (${cached.length()} B)")
+            return Result(cached.absolutePath, 0, 0)
+        }
+
+        return doDecode(context, track, cacheDir, cached)
+    }
+
+    private fun doDecode(
+        context: Context, track: Track, cacheDir: File, outFile: File
+    ): Result? {
+        val path = track.path
+        val isContent = path.startsWith("content://", ignoreCase = true)
+
         val extractor = MediaExtractor()
-        try { extractor.setDataSource(sourcePath) }
-        catch (t: Throwable) { Log.e(TAG, "extractor: ${t.message}"); return null }
+        try {
+            if (isContent) {
+                extractor.setDataSource(context, Uri.parse(path), null)
+            } else {
+                extractor.setDataSource(path)
+            }
+        } catch (t: Throwable) {
+            Log.e(TAG, "setDataSource: ${t.message}")
+            runCatching { extractor.release() }
+            return null
+        }
 
         val idx = (0 until extractor.trackCount).firstOrNull { i ->
             extractor.getTrackFormat(i).getString(MediaFormat.KEY_MIME)
                 ?.startsWith("audio/") == true
-        } ?: run { extractor.release(); return null }
+        }
+        if (idx == null) {
+            extractor.release(); return null
+        }
 
         extractor.selectTrack(idx)
         val fmt = extractor.getTrackFormat(idx)
@@ -52,7 +87,8 @@ object AudioDecoder {
 
         val codec = try { MediaCodec.createDecoderByType(mime) }
         catch (t: Throwable) {
-            Log.e(TAG, "createDecoder: ${t.message}"); extractor.release(); return null
+            Log.e(TAG, "createDecoder: ${t.message}")
+            extractor.release(); return null
         }
 
         codec.configure(fmt, null, null, 0)
@@ -61,11 +97,8 @@ object AudioDecoder {
         val srcRate = fmt.getInteger(MediaFormat.KEY_SAMPLE_RATE)
         val srcCh   = fmt.getInteger(MediaFormat.KEY_CHANNEL_COUNT)
 
-        val cacheDir = File(context.cacheDir, "decoded").apply { mkdirs() }
-        val outFile  = File(cacheDir, "skb_${System.currentTimeMillis()}.wav")
-        val out      = RandomAccessFile(outFile, "rw")
-
-        // Reserve WAV header (44 bytes); patched at the end
+        val tmp = File(cacheDir, "${outFile.name}.tmp")
+        val out = RandomAccessFile(tmp, "rw")
         out.setLength(44)
         var pcmBytes = 0L
 
@@ -109,13 +142,12 @@ object AudioDecoder {
         } catch (t: Throwable) {
             Log.e(TAG, "decode loop: ${t.message}")
             runCatching { out.close() }
-            runCatching { outFile.delete() }
+            runCatching { tmp.delete() }
             runCatching { codec.stop(); codec.release() }
             extractor.release()
             return null
         }
 
-        // Patch WAV header
         out.seek(0)
         writeWavHeader(out, srcRate, srcCh, 16, pcmBytes)
         out.close()
@@ -123,7 +155,13 @@ object AudioDecoder {
         runCatching { codec.stop(); codec.release() }
         extractor.release()
 
-        Log.i(TAG, "decoded → ${outFile.name} ($pcmBytes bytes, $srcRate Hz, $srcCh ch)")
+        if (outFile.exists()) outFile.delete()
+        if (!tmp.renameTo(outFile)) {
+            Log.w(TAG, "rename failed, keeping tmp")
+            return Result(tmp.absolutePath, srcRate, srcCh)
+        }
+
+        Log.i(TAG, "decoded → ${outFile.name} ($pcmBytes B, $srcRate Hz, $srcCh ch)")
         return Result(outFile.absolutePath, srcRate, srcCh)
     }
 
@@ -143,11 +181,21 @@ object AudioDecoder {
         out.write(b.array())
     }
 
-    /** Best-effort cleanup of decoded cache WAVs older than 24h. */
-    fun cleanOldCache(context: Context) {
+    fun cacheSizeBytes(context: Context): Long {
+        val dir = File(context.cacheDir, "decoded")
+        return dir.listFiles()?.sumOf { it.length() } ?: 0L
+    }
+
+    fun cleanOldCache(context: Context, keepFreshCount: Int = 50) {
         val dir = File(context.cacheDir, "decoded")
         if (!dir.exists()) return
-        val cutoff = System.currentTimeMillis() - 24 * 60 * 60 * 1000L
-        dir.listFiles()?.forEach { if (it.lastModified() < cutoff) it.delete() }
+        val files = dir.listFiles()?.sortedByDescending { it.lastModified() } ?: return
+        files.drop(keepFreshCount).forEach { it.delete() }
+    }
+
+    private fun sha1(s: String): String {
+        val md = MessageDigest.getInstance("SHA-1")
+        return md.digest(s.toByteArray()).joinToString("") { "%02x".format(it) }
+            .take(16)
     }
 }

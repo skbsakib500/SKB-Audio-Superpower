@@ -1,10 +1,10 @@
 package com.skbsakib.audiosuperpower.player
 
-import com.skbsakib.audiosuperpower.library.PlaybackState
-
 import android.content.Context
 import com.skbsakib.audiosuperpower.NativeBridge
 import com.skbsakib.audiosuperpower.library.AudioDecoder
+import com.skbsakib.audiosuperpower.library.LazyMetadata
+import com.skbsakib.audiosuperpower.library.PlaybackState
 import com.skbsakib.audiosuperpower.library.Recent
 import com.skbsakib.audiosuperpower.library.Track
 import kotlinx.coroutines.CoroutineScope
@@ -23,13 +23,13 @@ data class PlayerSnapshot(
     val title: String = "",
     val artist: String = "",
     val album: String = "",
+    val path: String = "",
     val positionMs: Long = 0L,
     val durationMs: Long = 0L,
     val sourceInfo: String = "",
     val deviceInfo: String = "",
     val error: String? = null,
-    val queueSize: Int = 0,
-    val queueIndex: Int = -1
+    val queueSize: Int = 0
 )
 
 object NativePlayer {
@@ -42,35 +42,32 @@ object NativePlayer {
 
     private var currentTrack: Track? = null
     private val queue = ArrayDeque<Track>()
-    private var history = ArrayDeque<Track>()      // for "previous"
-    private var libraryContext: List<Track> = emptyList()  // source list for auto-next
+    private val history = ArrayDeque<Track>()
+    private var libraryContext: List<Track> = emptyList()
     private var currentLibraryIndex: Int = -1
     private var appContext: Context? = null
 
-    fun attach(context: Context) {
-        appContext = context.applicationContext
-    }
+    fun attach(context: Context) { appContext = context.applicationContext }
 
-    /** Sets the source list so next/prev can walk it by index. */
     fun setLibrary(list: List<Track>, index: Int) {
         libraryContext = list
         currentLibraryIndex = index
     }
 
-    /** Load and optionally auto-play a track. */
     fun load(context: Context, track: Track, autoplay: Boolean = true, libraryIndex: Int = -1) {
-        // SKB_HOOK_PLAYBACK
-        // (auto-inserted — needs manual review if args differ)
         appContext = context.applicationContext
         if (libraryIndex >= 0) currentLibraryIndex = libraryIndex
+
         scope.launch {
             _snapshot.value = _snapshot.value.copy(
                 state = PlayerState.LOADING,
                 title = track.title, artist = track.artist, album = track.album,
+                path = track.path,
                 positionMs = 0L, durationMs = 0L, error = null
             )
+            PlaybackState.setNowPlaying(track.id, track.path, false)
 
-            val decoded = AudioDecoder.decodeToCache(context.applicationContext, track.path)
+            val decoded = AudioDecoder.decodeToCache(context.applicationContext, track)
             if (decoded == null) {
                 _snapshot.value = _snapshot.value.copy(
                     state = PlayerState.ERROR, error = "Decode failed")
@@ -85,30 +82,35 @@ object NativePlayer {
                 return@launch
             }
 
-            currentTrack?.let { prev -> if (prev.path != track.path) history.addLast(prev) }
-            currentTrack = track
+            // Enrich metadata lazily (SAF tracks have unknown artist/album initially)
+            val enriched = if (track.artist == "Unknown artist" || track.durationMs == 0L) {
+                runCatching { LazyMetadata.read(context.applicationContext, track) }
+                    .getOrElse { track }
+            } else track
+
+            currentTrack?.let { prev -> if (prev.path != enriched.path) history.addLast(prev) }
+            currentTrack = enriched
 
             val src = runCatching { NativeBridge.nativeSourceInfo() }.getOrElse { "" }
             val dur = runCatching { NativeBridge.nativeDurationMs() }.getOrElse { 0L }
 
             _snapshot.value = _snapshot.value.copy(
                 state = PlayerState.PAUSED,
-                positionMs = 0L, durationMs = dur,
+                title = enriched.title,
+                artist = enriched.artist,
+                album = enriched.album,
+                positionMs = 0L, durationMs = if (dur > 0) dur else enriched.durationMs,
                 sourceInfo = src,
                 queueSize = queue.size,
                 error = null
             )
 
-            Recent.push(context.applicationContext, track)
-
+            Recent.push(context.applicationContext, enriched)
             if (autoplay) play()
         }
     }
 
-    // ── Transport ──
     fun play() {
-        // SKB_HOOK_PLAYBACK
-        // (auto-inserted — needs manual review if args differ)
         scope.launch {
             val ok = runCatching { NativeBridge.nativePlay() }.getOrElse { false }
             if (!ok) {
@@ -119,6 +121,7 @@ object NativePlayer {
             val dev = runCatching { NativeBridge.nativeDeviceInfo() }.getOrElse { "" }
             _snapshot.value = _snapshot.value.copy(
                 state = PlayerState.PLAYING, deviceInfo = dev, error = null)
+            PlaybackState.setPlaying(true)
             startPolling()
         }
     }
@@ -127,6 +130,7 @@ object NativePlayer {
         scope.launch {
             runCatching { NativeBridge.nativePause() }
             _snapshot.value = _snapshot.value.copy(state = PlayerState.PAUSED)
+            PlaybackState.setPlaying(false)
             stopPolling()
         }
     }
@@ -139,6 +143,7 @@ object NativePlayer {
         scope.launch {
             runCatching { NativeBridge.nativeStop() }
             _snapshot.value = _snapshot.value.copy(state = PlayerState.IDLE, positionMs = 0L)
+            PlaybackState.clear()
             stopPolling()
         }
     }
@@ -150,10 +155,8 @@ object NativePlayer {
         }
     }
 
-    // ── Next / Previous ──
     fun next() {
         val ctx = appContext ?: return
-        // Priority: explicit queue → library list → nothing
         if (queue.isNotEmpty()) {
             val nt = queue.removeFirst()
             _snapshot.value = _snapshot.value.copy(queueSize = queue.size)
@@ -169,44 +172,33 @@ object NativePlayer {
 
     fun previous() {
         val ctx = appContext ?: return
-        // If >3s in, restart current
         if (_snapshot.value.positionMs > 3000L && currentTrack != null) {
-            seekToFraction(0.0)
-            return
+            seekToFraction(0.0); return
         }
         if (history.isNotEmpty()) {
-            val pt = history.removeLast()
-            load(ctx, pt, autoplay = true)
-            return
+            load(ctx, history.removeLast(), autoplay = true); return
         }
         if (libraryContext.isNotEmpty() && currentLibraryIndex > 0) {
             val pi = currentLibraryIndex - 1
             currentLibraryIndex = pi
             load(ctx, libraryContext[pi], autoplay = true, libraryIndex = pi)
-        } else {
-            seekToFraction(0.0)
-        }
+        } else seekToFraction(0.0)
     }
 
-    // ── Queue ops ──
     fun enqueueNext(t: Track) {
         queue.addFirst(t)
         _snapshot.value = _snapshot.value.copy(queueSize = queue.size)
     }
-
     fun enqueue(t: Track) {
         queue.addLast(t)
         _snapshot.value = _snapshot.value.copy(queueSize = queue.size)
     }
-
     fun clearQueue() {
         queue.clear()
         _snapshot.value = _snapshot.value.copy(queueSize = 0)
     }
-
     fun current(): Track? = currentTrack
 
-    // ── Polling ──
     private fun startPolling() {
         stopPolling()
         pollJob = scope.launch {
@@ -217,7 +209,6 @@ object NativePlayer {
             }
         }
     }
-
     private fun stopPolling() { pollJob?.cancel(); pollJob = null }
 
     private fun refreshPosition() {
@@ -231,8 +222,9 @@ object NativePlayer {
         _snapshot.value = _snapshot.value.copy(
             positionMs = pos, durationMs = dur, state = mapped)
         if (mapped == PlayerState.COMPLETED) {
+            PlaybackState.setPlaying(false)
             stopPolling()
-            next()      // auto-advance on completion
+            next()
         }
     }
 }
