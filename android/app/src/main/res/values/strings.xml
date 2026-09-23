@@ -1,3 +1,20 @@
 <resources>
     <string name="app_name">SKB Audio Superpower</string>
+    <string name="perm_title">Permissions Required</string>
+    <string name="perm_subtitle">SKB Audio Superpower needs the following to function.</string>
+    <string name="perm_audio">Audio library access</string>
+    <string name="perm_audio_desc">Read your music files from device storage.</string>
+    <string name="perm_notif">Notifications</string>
+    <string name="perm_notif_desc">Show playback controls on lock screen and notification shade.</string>
+    <string name="perm_grant">Grant</string>
+    <string name="perm_granted">Granted</string>
+    <string name="perm_continue">Continue</string>
+    <string name="perm_settings">Open Settings</string>
+    <string name="home_settings">Settings</string>
+    <string name="settings_title">Settings</string>
+    <string name="settings_accent">Accent Color</string>
+    <string name="settings_haptics">Haptic Feedback</string>
+    <string name="settings_version">Version</string>
+    <string name="settings_back">Back</string>
+    <string name="home_open_settings">Open Settings</string>
 </resources>
