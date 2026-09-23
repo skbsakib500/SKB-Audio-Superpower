@@ -1,0 +1,26 @@
+{
+  "phase": "1B",
+  "status": "IN_PROGRESS",
+  "features": {
+    "compose_ui_shell": "IMPLEMENTED",
+    "jni_bridge": "IMPLEMENTED",
+    "native_core_stub": "IMPLEMENTED",
+    "foreground_service": "PLANNED",
+    "oboe_engine": "PLANNED",
+    "decoders": "PLANNED",
+    "resampler": "PLANNED",
+    "dsp_pipeline": "PLANNED",
+    "eq_autoeq": "PLANNED",
+    "spatial_3d_10d": "PLANNED",
+    "analyzer": "PLANNED",
+    "device_lab": "PLANNED",
+    "diagnostics": "PLANNED",
+    "adaptive_engine": "PLANNED",
+    "release_signing": "PLANNED"
+  },
+  "hardware_notes": {
+    "max_output_sample_rate_hz": 192000,
+    "dsp_sample_rate_hz_max": 768000,
+    "root_required": false
+  }
+}

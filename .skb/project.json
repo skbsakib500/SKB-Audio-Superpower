@@ -1,0 +1,15 @@
+{
+  "product": "SKB Audio Superpower",
+  "codename": "2080 AUDIO LAB",
+  "creator": "SKB Sakib",
+  "developer": "SKB Dev",
+  "github": "skbsakib500",
+  "repo": "SKB-Audio-Superpower",
+  "package": "com.skbsakib.audiosuperpower",
+  "version": "0.1.0-alpha.1",
+  "phase": "1B",
+  "min_sdk": 24,
+  "target_sdk": 34,
+  "compile_sdk": 34,
+  "abi": ["arm64-v8a"]
+}
