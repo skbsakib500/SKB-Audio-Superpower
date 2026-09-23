@@ -53,6 +53,7 @@ import com.skbsakib.audiosuperpower.ui.nav.Routes
 import com.skbsakib.audiosuperpower.ui.nav.SkbNavHost
 import com.skbsakib.audiosuperpower.ui.overlay.PlayerOverlay
 import com.skbsakib.audiosuperpower.ui.theme.AccentPalette
+import com.skbsakib.audiosuperpower.ui.theme.ThemeVariant
 import com.skbsakib.audiosuperpower.ui.theme.SkbTheme
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -94,7 +95,10 @@ class MainActivity : ComponentActivity() {
                 showIntro = false
             }
 
-            SkbTheme(accent = AccentPalette.from(settings.accentColor)) {
+            SkbTheme(
+                accent = AccentPalette.from(settings.accentColor),
+                variant = ThemeVariant.from(settings.themeVariant)
+            ) {
                 Surface(Modifier.fillMaxSize(), color = Color.Black) {
 
                     // ── Main app (rendered under the intro overlay) ──
@@ -113,7 +117,8 @@ class MainActivity : ComponentActivity() {
                                 }
                             },
                             onAccentChange = { scope.launch { store.setAccent(it) } },
-                            onHapticsChange = { scope.launch { store.setHaptics(it) } }
+                            onHapticsChange = { scope.launch { store.setHaptics(it) } },
+                            onVariantChange = { scope.launch { store.setThemeVariant(it) } }
                         )
                         PlayerOverlay()
                     }

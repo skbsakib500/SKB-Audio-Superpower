@@ -23,13 +23,15 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.skbsakib.audiosuperpower.settings.SkbSettings
 import com.skbsakib.audiosuperpower.ui.theme.AccentPalette
+import com.skbsakib.audiosuperpower.ui.theme.ThemeVariant
 
 @Composable
 fun SettingsScreen(
     settings: SkbSettings,
     onBack: () -> Unit,
     onAccentChange: (String) -> Unit,
-    onHapticsChange: (Boolean) -> Unit
+    onHapticsChange: (Boolean) -> Unit,
+    onVariantChange: (String) -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -64,6 +66,53 @@ fun SettingsScreen(
                         .clickable { onAccentChange(p.id) },
                     border = if (selected) androidx.compose.foundation.BorderStroke(3.dp, Color.White) else null
                 ) {}
+            }
+        }
+
+        Spacer(Modifier.height(24.dp))
+
+        SectionLabel("THEME VARIANT")
+        Spacer(Modifier.height(10.dp))
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            ThemeVariant.entries.chunked(2).forEach { row ->
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    row.forEach { v ->
+                        val selected = v.id == settings.themeVariant
+                        Surface(
+                            color = if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+                                    else v.surface,
+                            shape = RoundedCornerShape(12.dp),
+                            border = if (selected) androidx.compose.foundation.BorderStroke(
+                                1.dp, MaterialTheme.colorScheme.primary) else null,
+                            modifier = Modifier.weight(1f).clickable { onVariantChange(v.id) }
+                        ) {
+                            Row(
+                                Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Surface(
+                                    color = v.background,
+                                    shape = androidx.compose.foundation.shape.CircleShape,
+                                    modifier = Modifier.size(14.dp),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp,
+                                        MaterialTheme.colorScheme.primary.copy(alpha = 0.4f))
+                                ) {}
+                                Spacer(Modifier.width(10.dp))
+                                Text(v.label,
+                                    color = if (selected) MaterialTheme.colorScheme.primary else Color(0xFFB0C2D0),
+                                    fontSize = 11.sp, letterSpacing = 2.sp,
+                                    fontFamily = FontFamily.Monospace,
+                                    fontWeight = FontWeight.Medium)
+                            }
+                        }
+                    }
+                    if (row.size == 1) {
+                        Spacer(Modifier.weight(1f))
+                    }
+                }
             }
         }
 

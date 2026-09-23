@@ -55,7 +55,8 @@ fun SkbNavHost(
     settings: SkbSettings,
     onGrantPermissions: () -> Unit,
     onAccentChange: (String) -> Unit,
-    onHapticsChange: (Boolean) -> Unit
+    onHapticsChange: (Boolean) -> Unit,
+    onVariantChange: (String) -> Unit
 ) {
 
     // ── Reusable transitions ──
@@ -133,7 +134,8 @@ fun SkbNavHost(
                 settings = settings,
                 onBack = { nav.popBackStack() },
                 onAccentChange = onAccentChange,
-                onHapticsChange = onHapticsChange
+                onHapticsChange = onHapticsChange,
+                onVariantChange = onVariantChange
             )
         }
 
