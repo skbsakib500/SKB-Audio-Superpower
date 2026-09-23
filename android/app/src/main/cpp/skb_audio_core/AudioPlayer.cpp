@@ -42,6 +42,7 @@ bool AudioPlayer::loadWav(const std::string& path, std::string& error) {
     resamplePhase_  = 0.0;
     eq_.reset();
     limiter_.reset();
+    spatial_.reset();
 
     LOGI("Loaded: %d Hz, %d ch, %d bits, %lld frames",
          srcSampleRate_, srcChannels_, srcBits_,
@@ -73,13 +74,12 @@ bool AudioPlayer::openStream(std::string& error) {
     scratch_.assign(static_cast<size_t>(stream_->getChannelCount()) *
                     static_cast<size_t>(stream_->getFramesPerBurst() * 8), 0.0f);
 
-    // Configure DSP for the device sample rate
     eq_.setSampleRate(static_cast<float>(stream_->getSampleRate()));
     limiter_.setSampleRate(static_cast<float>(stream_->getSampleRate()));
+    spatial_.setSampleRate(static_cast<float>(stream_->getSampleRate()));
 
-    LOGI("Oboe stream opened: device %d Hz, %d ch, bufferFrames=%d",
-         stream_->getSampleRate(), stream_->getChannelCount(),
-         stream_->getBufferSizeInFrames());
+    LOGI("Oboe stream opened: device %d Hz, %d ch",
+         stream_->getSampleRate(), stream_->getChannelCount());
     return true;
 }
 
@@ -129,6 +129,7 @@ void AudioPlayer::stop() {
     resamplePhase_ = 0.0;
     eq_.reset();
     limiter_.reset();
+    spatial_.reset();
     state_.store(PlaybackState::Idle, std::memory_order_release);
 }
 
@@ -155,25 +156,46 @@ int64_t AudioPlayer::durationMs() const {
 // ─────────────────────────────────────────────────────
 //  DSP control
 // ─────────────────────────────────────────────────────
-void AudioPlayer::setDspEnabled(bool e) {
-    dspEnabled_.store(e, std::memory_order_release);
-}
-
-void AudioPlayer::setPreampDb(float db)   { eq_.setPreampDb(db); }
-void AudioPlayer::setEqBand(int idx, float db) { eq_.setBandGain(idx, db); }
-void AudioPlayer::setBassDb(float db)     { eq_.setBassDb(db); }
-void AudioPlayer::setTrebleDb(float db)   { eq_.setTrebleDb(db); }
-
-void AudioPlayer::setLimiterEnabled(bool e)      { limiter_.setEnabled(e); }
-void AudioPlayer::setLimiterCeilingDb(float db)  { limiter_.setCeilingDb(db); }
-
-void AudioPlayer::resetDsp() {
-    eq_.reset();
-    limiter_.reset();
-}
+void AudioPlayer::setDspEnabled(bool e)      { dspEnabled_.store(e, std::memory_order_release); }
+void AudioPlayer::setPreampDb(float db)      { eq_.setPreampDb(db); }
+void AudioPlayer::setEqBand(int idx, float db){ eq_.setBandGain(idx, db); }
+void AudioPlayer::setBassDb(float db)        { eq_.setBassDb(db); }
+void AudioPlayer::setTrebleDb(float db)      { eq_.setTrebleDb(db); }
+void AudioPlayer::setLimiterEnabled(bool e)  { limiter_.setEnabled(e); }
+void AudioPlayer::setLimiterCeilingDb(float db) { limiter_.setCeilingDb(db); }
+void AudioPlayer::resetDsp()                 { eq_.reset(); limiter_.reset(); }
 
 // ─────────────────────────────────────────────────────
-//  Realtime callback
+//  Spatial control
+// ─────────────────────────────────────────────────────
+void AudioPlayer::setSpatialEnabled(bool e) {
+    spatialEnabled_.store(e, std::memory_order_release);
+    spatial_.setEnabled(e);
+}
+
+void AudioPlayer::setSpatialMode(int mode) {
+    spatial::SpatialEngine::Mode m;
+    switch (mode) {
+        case 3:  m = spatial::SpatialEngine::Mode::D3;  break;
+        case 4:  m = spatial::SpatialEngine::Mode::D4;  break;
+        case 5:  m = spatial::SpatialEngine::Mode::D5;  break;
+        case 6:  m = spatial::SpatialEngine::Mode::D6;  break;
+        case 7:  m = spatial::SpatialEngine::Mode::D7;  break;
+        case 8:  m = spatial::SpatialEngine::Mode::D8;  break;
+        case 9:  m = spatial::SpatialEngine::Mode::D9;  break;
+        case 10: m = spatial::SpatialEngine::Mode::D10; break;
+        default: m = spatial::SpatialEngine::Mode::OFF; break;
+    }
+    spatial_.setMode(m);
+}
+
+void AudioPlayer::setSpatialHeight(float h)    { spatial_.setHeight(h); }
+void AudioPlayer::setSpatialRoom(int room)     { spatial_.setRoom(room); }
+void AudioPlayer::setSpatialIntensity(float i) { spatial_.setIntensity(i); }
+void AudioPlayer::resetSpatial()               { spatial_.reset(); }
+
+// ─────────────────────────────────────────────────────
+//  Realtime callback — L/R paired for spatial processing
 // ─────────────────────────────────────────────────────
 oboe::DataCallbackResult AudioPlayer::onAudioReady(
         oboe::AudioStream* stream, void* audioData, int32_t numFrames) {
@@ -192,7 +214,8 @@ oboe::DataCallbackResult AudioPlayer::onAudioReady(
 
     int64_t pos = positionFrames_.load(std::memory_order_relaxed);
     const double rateRatio = static_cast<double>(srcRate) / static_cast<double>(outRate);
-    const bool useDsp = dspEnabled_.load(std::memory_order_relaxed);
+    const bool useDsp     = dspEnabled_.load(std::memory_order_relaxed);
+    const bool useSpatial = spatialEnabled_.load(std::memory_order_relaxed);
 
     for (int32_t i = 0; i < numFrames; ++i) {
         if (pos >= totalFrames_) {
@@ -207,18 +230,39 @@ oboe::DataCallbackResult AudioPlayer::onAudioReady(
 
         const float* frameIn = samples_.data() + pos * srcCh;
 
-        for (int32_t c = 0; c < outChannels; ++c) {
-            int32_t srcIdx = (c < srcCh) ? c : 0;
-            float s = frameIn[srcIdx];
+        // L / R extraction (mono source -> duplicate to both)
+        float l = frameIn[0];
+        float r = (srcCh >= 2) ? frameIn[1] : l;
 
-            if (useDsp) {
-                s = eq_.process(s, c < 2 ? c : 0);
-                s = limiter_.process(s);
-            }
-
-            out[i * outChannels + c] = s;
+        // 1) EQ (stereo)
+        if (useDsp) {
+            l = eq_.process(l, 0);
+            r = eq_.process(r, 1);
         }
 
+        // 2) Spatial (stereo paired)
+        if (useSpatial) {
+            spatial_.process(l, r);
+        }
+
+        // 3) Limiter (stereo)
+        if (useDsp) {
+            l = limiter_.process(l);
+            r = limiter_.process(r);
+        }
+
+        // Write out
+        if (outChannels >= 2) {
+            out[i * outChannels + 0] = l;
+            out[i * outChannels + 1] = r;
+            for (int32_t c = 2; c < outChannels; ++c) {
+                out[i * outChannels + c] = 0.0f;
+            }
+        } else {
+            out[i * outChannels] = 0.5f * (l + r);
+        }
+
+        // Advance source position
         if (srcRate == outRate) {
             ++pos;
         } else {

@@ -32,4 +32,12 @@ object NativeBridge {
     external fun nativeSetLimiterEnabled(enabled: Boolean)
     external fun nativeSetLimiterCeiling(db: Float)
     external fun nativeResetDsp()
+
+    // Spatial
+    external fun nativeSetSpatialEnabled(enabled: Boolean)
+    external fun nativeSetSpatialMode(mode: Int)
+    external fun nativeSetSpatialHeight(height: Float)
+    external fun nativeSetSpatialRoom(room: Int)
+    external fun nativeSetSpatialIntensity(intensity: Float)
+    external fun nativeResetSpatial()
 }

@@ -132,4 +132,36 @@ Java_com_skbsakib_audiosuperpower_NativeBridge_nativeResetDsp(JNIEnv*, jobject) 
     ensurePlayer()->resetDsp();
 }
 
+
+// ── Spatial control ──
+JNIEXPORT void JNICALL
+Java_com_skbsakib_audiosuperpower_NativeBridge_nativeSetSpatialEnabled(JNIEnv*, jobject, jboolean e) {
+    ensurePlayer()->setSpatialEnabled(e == JNI_TRUE);
+}
+
+JNIEXPORT void JNICALL
+Java_com_skbsakib_audiosuperpower_NativeBridge_nativeSetSpatialMode(JNIEnv*, jobject, jint mode) {
+    ensurePlayer()->setSpatialMode(static_cast<int>(mode));
+}
+
+JNIEXPORT void JNICALL
+Java_com_skbsakib_audiosuperpower_NativeBridge_nativeSetSpatialHeight(JNIEnv*, jobject, jfloat h) {
+    ensurePlayer()->setSpatialHeight(static_cast<float>(h));
+}
+
+JNIEXPORT void JNICALL
+Java_com_skbsakib_audiosuperpower_NativeBridge_nativeSetSpatialRoom(JNIEnv*, jobject, jint room) {
+    ensurePlayer()->setSpatialRoom(static_cast<int>(room));
+}
+
+JNIEXPORT void JNICALL
+Java_com_skbsakib_audiosuperpower_NativeBridge_nativeSetSpatialIntensity(JNIEnv*, jobject, jfloat i) {
+    ensurePlayer()->setSpatialIntensity(static_cast<float>(i));
+}
+
+JNIEXPORT void JNICALL
+Java_com_skbsakib_audiosuperpower_NativeBridge_nativeResetSpatial(JNIEnv*, jobject) {
+    ensurePlayer()->resetSpatial();
+}
+
 } // extern "C"

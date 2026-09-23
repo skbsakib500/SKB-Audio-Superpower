@@ -10,6 +10,7 @@ import com.skbsakib.audiosuperpower.ui.screens.FullPlayerScreen
 import com.skbsakib.audiosuperpower.ui.screens.LibraryScreen
 import com.skbsakib.audiosuperpower.ui.screens.PermissionsScreen
 import com.skbsakib.audiosuperpower.ui.screens.SettingsScreen
+import com.skbsakib.audiosuperpower.ui.screens.SpatialLabScreen
 
 object Routes {
     const val PERMISSIONS = "permissions"
@@ -17,6 +18,7 @@ object Routes {
     const val SETTINGS    = "settings"
     const val PLAYER      = "player"
     const val DSP_LAB     = "dsp_lab"
+    const val SPATIAL_LAB = "spatial_lab"
 }
 
 @Composable
@@ -37,7 +39,8 @@ fun SkbNavHost(
                 settings = settings,
                 onOpenSettings = { nav.navigate(Routes.SETTINGS) },
                 onOpenPlayer   = { nav.navigate(Routes.PLAYER) },
-                onOpenDspLab   = { nav.navigate(Routes.DSP_LAB) }
+                onOpenDspLab   = { nav.navigate(Routes.DSP_LAB) },
+                onOpenSpatialLab = { nav.navigate(Routes.SPATIAL_LAB) }
             )
         }
         composable(Routes.SETTINGS) {
@@ -53,6 +56,9 @@ fun SkbNavHost(
         }
         composable(Routes.DSP_LAB) {
             DspLabScreen(onClose = { nav.popBackStack() })
+        }
+        composable(Routes.SPATIAL_LAB) {
+            SpatialLabScreen(onClose = { nav.popBackStack() })
         }
     }
 }

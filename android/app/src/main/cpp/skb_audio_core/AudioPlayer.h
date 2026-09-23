@@ -11,6 +11,7 @@
 #include "WavReader.h"
 #include "dsp/EqBank.h"
 #include "dsp/Limiter.h"
+#include "spatial/SpatialEngine.h"
 
 namespace skb {
 
@@ -42,7 +43,7 @@ public:
     int32_t deviceSampleRate() const { return deviceSampleRate_.load(); }
     int32_t deviceChannels() const { return deviceChannels_.load(); }
 
-    // ── DSP control (thread-safe; called from JNI) ──
+    // ── DSP control ──
     void setDspEnabled(bool e);
     void setPreampDb(float db);
     void setEqBand(int idx, float gainDb);
@@ -51,6 +52,14 @@ public:
     void setLimiterEnabled(bool e);
     void setLimiterCeilingDb(float db);
     void resetDsp();
+
+    // ── Spatial control ──
+    void setSpatialEnabled(bool e);
+    void setSpatialMode(int mode);       // 0=OFF, 3..10 = D3..D10
+    void setSpatialHeight(float h);      // 0..1
+    void setSpatialRoom(int room);       // 0=STUDIO 1=HALL 2=STAGE 3=CATHEDRAL
+    void setSpatialIntensity(float i);   // 0..1
+    void resetSpatial();
 
     // Oboe callbacks
     oboe::DataCallbackResult onAudioReady(
@@ -61,11 +70,9 @@ private:
     bool openStream(std::string& error);
     void closeStream();
 
-    // Stream
     std::shared_ptr<oboe::AudioStream> stream_;
     std::mutex streamMutex_;
 
-    // Source data
     std::vector<float> samples_;
     int32_t srcSampleRate_ = 0;
     int32_t srcChannels_ = 0;
@@ -84,6 +91,10 @@ private:
     dsp::EqBank  eq_;
     dsp::Limiter limiter_;
     std::atomic<bool> dspEnabled_{false};
+
+    // ── Spatial ──
+    spatial::SpatialEngine spatial_;
+    std::atomic<bool> spatialEnabled_{false};
 };
 
 } // namespace skb
