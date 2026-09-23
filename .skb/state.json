@@ -1,10 +1,12 @@
 {
   "phase": "1B",
-  "status": "IN_PROGRESS",
+  "status": "VALIDATED",
   "features": {
     "compose_ui_shell": "IMPLEMENTED",
     "jni_bridge": "IMPLEMENTED",
     "native_core_stub": "IMPLEMENTED",
+    "ci_build_apk": "IMPLEMENTED",
+    "ci_unit_test": "IMPLEMENTED",
     "foreground_service": "PLANNED",
     "oboe_engine": "PLANNED",
     "decoders": "PLANNED",
@@ -17,6 +19,13 @@
     "diagnostics": "PLANNED",
     "adaptive_engine": "PLANNED",
     "release_signing": "PLANNED"
+  },
+  "artifacts": {
+    "apk_debug": {
+      "size_bytes": 9122611,
+      "sha256": "fa9a27169f10cc77e7f84f89fc5090ef01b3ce42c7b2f7bb3a4904fdf9e17f08",
+      "ci_run_id": 35821906464
+    }
   },
   "hardware_notes": {
     "max_output_sample_rate_hz": 192000,
